@@ -17,6 +17,7 @@ solo abre si NO hay ya una posicion en BTCUSD, y solo en el cruce de la senal.
 """
 import sys
 import math
+from datetime import datetime, timezone, timedelta
 import requests
 import capital_client as cc
 
@@ -149,6 +150,32 @@ def has_open_position(h):
     return any(p["market"]["epic"] == EPIC for p in pos)
 
 
+def current_bar_close_utc():
+    """Inicio de la vela 4H en curso = cierre de la ultima vela cerrada (UTC, naive)."""
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    return now.replace(hour=(now.hour // 4) * 4, minute=0, second=0, microsecond=0)
+
+
+def acted_this_bar(h, bar_close):
+    """True si ya se abrio una posicion de EPIC en esta vela 4H (aunque ya este cerrada).
+    Candado de idempotencia: da igual cuantas veces se gatille el bot, abre <=1 por vela."""
+    frm = (bar_close - timedelta(hours=6)).strftime("%Y-%m-%dT%H:%M:%S")
+    r = cc.get(h, f"/api/v1/history/activity?from={frm}")
+    if r.status_code != 200:
+        # ante la duda, no bloqueo: mejor dejar que el candado 'has_open_position' decida
+        return False
+    for a in r.json().get("activities", []):
+        if a.get("epic") != EPIC or a.get("type") not in ("POSITION", "WORKING_ORDER"):
+            continue
+        try:
+            d = datetime.strptime(a["dateUTC"], "%Y-%m-%dT%H:%M:%S.%f")
+        except (KeyError, ValueError):
+            continue
+        if d >= bar_close:
+            return True
+    return False
+
+
 def main():
     dry = "--dry-run" in sys.argv
     status_only = "--status" in sys.argv
@@ -170,6 +197,11 @@ def main():
     h = cc.login()
     if has_open_position(h):
         print("  Ya hay una posicion abierta en", EPIC, "-> no abro otra.")
+        return
+
+    bar_close = current_bar_close_utc()
+    if acted_this_bar(h, bar_close):
+        print(f"  Ya se opero en esta vela 4H (cierre {bar_close}Z) -> no repito (candado).")
         return
 
     if dry:
