@@ -2,7 +2,7 @@
 """
 Bot Bollinger BTC — reemplaza a TradingView (no requiere plan de pago).
 
-Baja velas 4H de BTC (Binance), calcula la MISMA estrategia Bollinger validada
+Baja velas 4H de BTC (Kraken), calcula la MISMA estrategia Bollinger validada
 (BB20/2 + RSI 35/65, SL 2xATR, TP = banda media) y, si hay señal en la última
 vela CERRADA y la cuenta está sin posición, coloca la orden en capital.com DEMO
 con su SL/TP. capital.com cierra sola al tocar SL o TP.
@@ -21,7 +21,9 @@ import requests
 import capital_client as cc
 
 EPIC       = "BTCUSD"          # instrumento en capital.com
-BINANCE    = "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=4h&limit=120"
+# Fuente de velas 4H. Kraken (no Binance) porque los runners de GitHub estan en
+# EE.UU. y Binance los bloquea (HTTP 451). Kraken interval=240 = 4 horas.
+KRAKEN     = "https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=240"
 SIZE       = 0.01             # tamano de la orden (ajustable)
 BB_LEN     = 20
 BB_MULT    = 2.0
@@ -34,13 +36,18 @@ ATR_MULT   = 2.0
 
 def fetch_closed_candles():
     """Devuelve listas o,h,l,c SOLO de velas cerradas (descarta la vela en curso)."""
-    r = requests.get(BINANCE, timeout=30)
+    r = requests.get(KRAKEN, timeout=30, headers={"User-Agent": "datika-bot"})
     r.raise_for_status()
-    k = r.json()[:-1]          # la ultima vela aun no cierra -> fuera
-    o = [float(x[1]) for x in k]
-    h = [float(x[2]) for x in k]
-    l = [float(x[3]) for x in k]
-    c = [float(x[4]) for x in k]
+    d = r.json()
+    if d.get("error"):
+        raise RuntimeError(f"Kraken error: {d['error']}")
+    res = d["result"]
+    key = next(k for k in res if k != "last")   # ej. XXBTZUSD
+    rows = res[key][:-1]       # Kraken viene ascendente; la ultima aun no cierra -> fuera
+    o = [float(x[1]) for x in rows]
+    h = [float(x[2]) for x in rows]
+    l = [float(x[3]) for x in rows]
+    c = [float(x[4]) for x in rows]
     return o, h, l, c
 
 
