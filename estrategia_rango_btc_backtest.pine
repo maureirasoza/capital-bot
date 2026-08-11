@@ -1,0 +1,59 @@
+//@version=5
+// BACKTEST de la estrategia de RANGO para BTC — misma lógica que la de producción,
+// pero como strategy() para verla en el "Strategy Tester" de TradingView.
+// (La versión con alertas para operar en vivo es estrategia_rango_btc.pine)
+
+strategy("Datika BTC Rango - Backtest", overlay=true,
+     initial_capital=10000,
+     default_qty_type=strategy.percent_of_equity, default_qty_value=10,
+     commission_type=strategy.commission.percent, commission_value=0.02,
+     calc_on_every_tick=false, process_orders_on_close=true)
+
+// ── Parámetros (los mismos que en producción) ──
+lookback = input.int(30,   "Velas del rango (soporte/resistencia)")
+rsiLen   = input.int(14,   "Largo RSI")
+rsiLow   = input.int(35,   "RSI sobreventa (largo)")
+rsiHigh  = input.int(65,   "RSI sobrecompra (corto)")
+atrLen   = input.int(14,   "Largo ATR")
+atrMult  = input.float(2.0,"ATR × (Stop Loss)")
+tpBuffer = input.float(0.5,"ATR × (colchón Take Profit)")
+
+// ── Filtro de fechas opcional (para acotar el backtest) ──
+useDates = input.bool(false, "Filtrar por fechas")
+startD   = input.time(timestamp("01 Jan 2025 00:00"), "Desde")
+endD     = input.time(timestamp("31 Dec 2026 00:00"), "Hasta")
+inDate   = not useDates or (time >= startD and time <= endD)
+
+// ── Cálculos ──
+sup = ta.lowest(low,  lookback)
+res = ta.highest(high, lookback)
+r   = ta.rsi(close, rsiLen)
+a   = ta.atr(atrLen)
+
+nearSup = close <= sup * 1.005
+nearRes = close >= res * 0.995
+longCond  = nearSup and r < rsiLow  and inDate
+shortCond = nearRes and r > rsiHigh and inDate
+
+// ── Niveles de SL/TP, congelados al momento de entrar ──
+var float slL = na, var float tpL = na
+var float slS = na, var float tpS = na
+
+if longCond
+    slL := sup - atrMult * a
+    tpL := res - tpBuffer * a
+    strategy.entry("Largo", strategy.long)
+
+if shortCond
+    slS := res + atrMult * a
+    tpS := sup + tpBuffer * a
+    strategy.entry("Corto", strategy.short)
+
+if strategy.position_size > 0
+    strategy.exit("Salida L", from_entry="Largo", stop=slL, limit=tpL)
+if strategy.position_size < 0
+    strategy.exit("Salida C", from_entry="Corto", stop=slS, limit=tpS)
+
+// ── Dibujo ──
+plot(sup, "Soporte",     color=color.new(color.green,0))
+plot(res, "Resistencia", color=color.new(color.red,0))

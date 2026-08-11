@@ -1,0 +1,50 @@
+//@version=5
+// BACKTEST de la estrategia BOLLINGER — misma lógica que la de producción,
+// como strategy() para verla en el "Strategy Tester" de TradingView.
+// TP fijo = banda media al entrar; SL = 2×ATR (una posición a la vez).
+
+strategy("Datika BTC Bollinger - Backtest", overlay=true,
+     initial_capital=10000,
+     default_qty_type=strategy.percent_of_equity, default_qty_value=10,
+     commission_type=strategy.commission.percent, commission_value=0.02,
+     pyramiding=0, calc_on_every_tick=false, process_orders_on_close=true)
+
+bbLen    = input.int(20,   "Bollinger / SMA")
+bbMult   = input.float(2.0,"Bollinger (desviaciones)")
+rsiLen   = input.int(14,   "RSI")
+rsiLow   = input.int(35,   "RSI sobreventa")
+rsiHigh  = input.int(65,   "RSI sobrecompra")
+atrLen   = input.int(14,   "ATR")
+atrMult  = input.float(2.0,"ATR × (Stop Loss)")
+
+basis = ta.sma(close, bbLen)
+dev   = bbMult * ta.stdev(close, bbLen)
+upper = basis + dev
+lower = basis - dev
+r     = ta.rsi(close, rsiLen)
+a     = ta.atr(atrLen)
+
+longC  = close < lower and r < rsiLow
+shortC = close > upper and r > rsiHigh
+
+var float slL = na, var float tpL = na
+var float slS = na, var float tpS = na
+
+if longC and strategy.position_size == 0
+    slL := close - atrMult * a
+    tpL := basis
+    strategy.entry("Largo", strategy.long)
+
+if shortC and strategy.position_size == 0
+    slS := close + atrMult * a
+    tpS := basis
+    strategy.entry("Corto", strategy.short)
+
+if strategy.position_size > 0
+    strategy.exit("Salida L", from_entry="Largo", stop=slL, limit=tpL)
+if strategy.position_size < 0
+    strategy.exit("Salida C", from_entry="Corto", stop=slS, limit=tpS)
+
+plot(basis, "Media",     color=color.new(color.gray,0))
+plot(upper, "Banda sup", color=color.new(color.red,0))
+plot(lower, "Banda inf", color=color.new(color.green,0))

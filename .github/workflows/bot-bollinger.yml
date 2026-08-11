@@ -1,0 +1,25 @@
+name: Bot Bollinger BTC (demo)
+
+on:
+  schedule:
+    # 5 min despues del cierre de cada vela 4H (UTC): 00,04,08,12,16,20
+    - cron: '5 0,4,8,12,16,20 * * *'
+  workflow_dispatch:        # permite dispararlo a mano desde la pestana Actions
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - name: Ejecutar bot
+        env:
+          CAPITAL_API_KEY:      ${{ secrets.CAPITAL_API_KEY }}
+          CAPITAL_IDENTIFIER:   ${{ secrets.CAPITAL_IDENTIFIER }}
+          CAPITAL_API_PASSWORD: ${{ secrets.CAPITAL_API_PASSWORD }}
+          CAPITAL_ENV: demo
+          CAPITAL_ALLOW_LIVE: '0'
+        run: python bot_bollinger.py

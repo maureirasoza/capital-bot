@@ -1,0 +1,7 @@
+# NUNCA subir credenciales
+.env
+
+# entorno virtual local
+venv/
+__pycache__/
+*.pyc

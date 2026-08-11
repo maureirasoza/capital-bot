@@ -1,0 +1,48 @@
+//@version=5
+// Estrategia de RANGO (mean-reversion) para BTC — Datika / demo capital.com
+// Largo cerca del soporte con RSI en sobreventa; corto cerca de la resistencia con RSI en sobrecompra.
+// Soporte/resistencia se calculan solos (rango de las últimas N velas), así no se quedan viejos.
+// La alerta manda un JSON al webhook de Make con entry, sl y tp ya calculados.
+
+indicator("Datika BTC Rango", overlay=true)
+
+// ── Parámetros (ajustables desde TradingView) ──
+lookback = input.int(30,   "Velas del rango (soporte/resistencia)")
+rsiLen   = input.int(14,   "Largo RSI")
+rsiLow   = input.int(35,   "RSI sobreventa (largo)")
+rsiHigh  = input.int(65,   "RSI sobrecompra (corto)")
+atrLen   = input.int(14,   "Largo ATR")
+atrMult  = input.float(2.0,"ATR × (distancia del Stop Loss)")
+tpBuffer = input.float(0.5,"ATR × (colchón del Take Profit antes del nivel opuesto)")
+epic     = input.string("BTCUSD", "Epic en capital.com (revísalo con: search bitcoin)")
+secret   = input.string("datika-btc-2026", "Secreto para validar el webhook")
+
+// ── Cálculos ──
+sup = ta.lowest(low,  lookback)
+res = ta.highest(high, lookback)
+r   = ta.rsi(close, rsiLen)
+a   = ta.atr(atrLen)
+
+nearSup = close <= sup * 1.005   // dentro de 0,5% del piso
+nearRes = close >= res * 0.995   // dentro de 0,5% del techo
+
+longCond  = nearSup and r < rsiLow
+shortCond = nearRes and r > rsiHigh
+
+longSL  = math.round(sup - atrMult * a)
+longTP  = math.round(res - tpBuffer * a)
+shortSL = math.round(res + atrMult * a)
+shortTP = math.round(sup + tpBuffer * a)
+
+// ── Dibujo ──
+plot(sup, "Soporte",     color = color.new(color.green, 0), linewidth = 1)
+plot(res, "Resistencia", color = color.new(color.red,   0), linewidth = 1)
+plotshape(longCond,  "Largo",  shape.triangleup,   location.belowbar, color.green, size = size.small)
+plotshape(shortCond, "Corto",  shape.triangledown, location.abovebar, color.red,   size = size.small)
+
+// ── Alertas (JSON al webhook) ──
+if longCond
+    alert('{"secret":"' + secret + '","epic":"' + epic + '","side":"BUY","entry":' + str.tostring(math.round(close)) + ',"sl":' + str.tostring(longSL) + ',"tp":' + str.tostring(longTP) + '}', alert.freq_once_per_bar_close)
+
+if shortCond
+    alert('{"secret":"' + secret + '","epic":"' + epic + '","side":"SELL","entry":' + str.tostring(math.round(close)) + ',"sl":' + str.tostring(shortSL) + ',"tp":' + str.tostring(shortTP) + '}', alert.freq_once_per_bar_close)
