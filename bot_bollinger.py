@@ -25,14 +25,14 @@ EPIC       = "BTCUSD"          # instrumento en capital.com
 # Fuente de velas 4H. Kraken (no Binance) porque los runners de GitHub estan en
 # EE.UU. y Binance los bloquea (HTTP 451). Kraken interval=240 = 4 horas.
 KRAKEN     = "https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=240"
-SIZE       = 0.01             # tamano de la orden (ajustable)
+SIZE       = 0.05             # tamano de la orden (ajustable) — ~$88 de ganancia por trade ganador
 BB_LEN     = 20
 BB_MULT    = 2.0
 RSI_LEN    = 14
 RSI_LOW    = 35
 RSI_HIGH   = 65
 ATR_LEN    = 14
-ATR_MULT   = 2.0
+ATR_MULT   = 2.5             # Stop Loss mas amplio: menos salidas prematuras (75% acierto en sim)
 
 
 def fetch_closed_candles():
