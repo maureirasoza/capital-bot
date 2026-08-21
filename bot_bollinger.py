@@ -25,6 +25,8 @@ EPIC       = "BTCUSD"          # instrumento en capital.com
 # Fuente de velas 4H. Kraken (no Binance) porque los runners de GitHub estan en
 # EE.UU. y Binance los bloquea (HTTP 451). Kraken interval=240 = 4 horas.
 KRAKEN     = "https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=240"
+ENABLED    = False            # BOT RETIRADO 20-ago-2026: reversion sobre cripto en tendencia = sangraba.
+                              # Reemplazado por el bot COBRE (trend-following). Poner True para reactivar.
 SIZE       = 0.05             # tamano de la orden (ajustable) — ~$88 de ganancia por trade ganador
 BB_LEN     = 20
 BB_MULT    = 2.0
@@ -179,6 +181,10 @@ def acted_this_bar(h, bar_close):
 def main():
     dry = "--dry-run" in sys.argv
     status_only = "--status" in sys.argv
+
+    if not ENABLED and not (dry or status_only):
+        print("[BTC Bollinger] BOT RETIRADO (ENABLED=False) -> reemplazado por el bot COBRE. No opera.")
+        return
 
     sig = evaluate()
     print(f"[Bollinger 4H {EPIC}] close={sig['close']} banda[{sig['lower']}..{sig['upper']}] "
