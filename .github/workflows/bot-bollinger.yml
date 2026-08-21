@@ -1,4 +1,4 @@
-name: Bot Bollinger BTC (demo)
+name: Bot COBRE 4h (demo)
 
 on:
   schedule:
@@ -15,11 +15,11 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install -r requirements.txt
-      - name: Ejecutar bot
+      - name: Ejecutar bot cobre
         env:
           CAPITAL_API_KEY:      ${{ secrets.CAPITAL_API_KEY }}
           CAPITAL_IDENTIFIER:   ${{ secrets.CAPITAL_IDENTIFIER }}
           CAPITAL_API_PASSWORD: ${{ secrets.CAPITAL_API_PASSWORD }}
           CAPITAL_ENV: demo
           CAPITAL_ALLOW_LIVE: '0'
-        run: python bot_bollinger.py
+        run: python bot_cobre.py
