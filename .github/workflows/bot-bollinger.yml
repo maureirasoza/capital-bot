@@ -1,10 +1,11 @@
 name: Bot COBRE 4h (demo)
 
 on:
-  schedule:
-    # 5 min despues del cierre de cada vela 4H (UTC): 00,04,08,12,16,20
-    - cron: '5 0,4,8,12,16,20 * * *'
-  workflow_dispatch:        # permite dispararlo a mano desde la pestana Actions
+  # Gatillo UNICO: cron-job.org via workflow_dispatch (POST a /dispatches).
+  # Se quito el 'schedule' de GitHub: disparaba a la misma hora que cron-job.org
+  # -> dos runs concurrentes -> race en el candado de idempotencia -> entradas
+  # DUPLICADAS en la misma vela. cron-job.org es el gatillo puntual y confiable.
+  workflow_dispatch:
 
 jobs:
   run-bot:
