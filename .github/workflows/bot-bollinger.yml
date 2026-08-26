@@ -1,4 +1,7 @@
-name: Bot COBRE 4h (demo)
+name: Bot ORO TREND 1h (demo)
+# Reemplaza al bot de cobre (retirado 26-ago). OJO: el archivo se sigue llamando
+# bot-bollinger.yml para NO romper el trigger de cron-job.org (que apunta a ese nombre).
+# El trigger de cron-job.org debe pasar de 4h a HORARIO: crontab '1 * * * *'.
 
 on:
   # Gatillo UNICO: cron-job.org via workflow_dispatch (POST a /dispatches).
@@ -16,11 +19,12 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install -r requirements.txt
-      - name: Ejecutar bot cobre
+      - name: Ejecutar bot oro trend (dos lados, 1h)
         env:
           CAPITAL_API_KEY:      ${{ secrets.CAPITAL_API_KEY }}
           CAPITAL_IDENTIFIER:   ${{ secrets.CAPITAL_IDENTIFIER }}
           CAPITAL_API_PASSWORD: ${{ secrets.CAPITAL_API_PASSWORD }}
           CAPITAL_ENV: demo
           CAPITAL_ALLOW_LIVE: '0'
-        run: python bot_cobre.py
+        # Cambiado 26-ago: bot_cobre.py (retirado) -> bot_gold_trend.py (oro trend 2 lados).
+        run: python bot_gold_trend.py

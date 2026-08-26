@@ -50,6 +50,8 @@ def bot_de(epic, size):
             return 'ORO Bollinger (2.0)'
         if abs(size - 0.3) < 0.05:
             return 'ORO FVG (0.3)'
+        if abs(size - 0.2) < 0.03:
+            return 'ORO Trend 2-lados (0.2)'
         return f'ORO pruebas/historico (size {size})'
     if epic == 'COPPER':
         if size is not None and abs(size - 100) < 5:
