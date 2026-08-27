@@ -48,8 +48,10 @@ def bot_de(epic, size):
             return 'ORO (sin dato de tamano)'
         if abs(size - 2.0) < 0.05:
             return 'ORO Bollinger (2.0)'
+        if abs(size - 1.0) < 0.05:
+            return 'ORO FVG (1.0)'
         if abs(size - 0.3) < 0.05:
-            return 'ORO FVG (0.3)'
+            return 'ORO FVG legado (0.3)'
         if abs(size - 0.2) < 0.03:
             return 'ORO Trend 2-lados (0.2)'
         return f'ORO pruebas/historico (size {size})'
