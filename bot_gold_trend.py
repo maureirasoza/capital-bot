@@ -33,11 +33,12 @@ SIZE     = 0.5           # Subido de 0.2 a 0.5 el 28-ago (a pedido, opcion moder
 ENT      = 15            # Donchian entrada: max/min de las ultimas 15 velas 1h
 EXIT     = 8             # Donchian salida: min/max de las ultimas 8 velas 1h
 ATR_LEN  = 14
-ATR_STOP = 2.0           # stop = 2 x ATR (inicial y trailing). Bajado de 4.0 a 2.0 el
-                         # 28-ago A PEDIDO del usuario (escalon a la mitad, para asegurar
-                         # ganancia antes). OJO: el backtest dice que 4.0 es mejor (+469 vs
-                         # +177 en 2 anos, y 2.0 es rob2 no ROB3) -> override informado.
-                         # Revertir = volver a 4.0.
+ATR_STOP = 1.0           # stop = 1 x ATR (inicial y trailing). Bajado a 1.0 el 28-ago A
+                         # PEDIDO EXPLICITO del usuario (override informado). OJO: el backtest
+                         # dice que 1.0 PIERDE (-260pt/2anos, no robusto, 33% acierto) porque
+                         # el stop tan pegado te saca en cada retroceso. El optimo es 4.0
+                         # (+885pt). El usuario lo sabe y prefiere el trailing apretado.
+                         # Revertir = volver a 4.0 (o 2.0).
 BAR_MIN  = 60            # velas de 1 hora
 
 
