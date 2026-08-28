@@ -10,7 +10,9 @@ direcciones (gana en subidas Y en bajadas) -> cubre el hueco del lineup.
 ESTRATEGIA (Donchian breakout de dos lados, velas 1h):
   - LARGO  si el cierre supera el maximo de las ultimas ENT velas.
   - CORTO  si el cierre cae bajo el minimo de las ultimas ENT velas.
-  - Stop inicial = ATR_STOP x ATR, que TRAILEA a favor cada corrida (largo sube, corto baja).
+  - Stop TRAILING NATIVO de capital.com: distancia = ATR_STOP x ATR (fija al entrar); lo mueve
+    capital.com en TIEMPO REAL, cada tick (28-ago: se descubrio que la API acepta trailingStop
+    pese a que dealingRules dice NOT_AVAILABLE). El bot ya no ajusta el stop cada corrida.
   - Salida adicional: largo cierra si close < min(EXIT); corto si close > max(EXIT).
 
 Validado (GC=F 1h, 2 anos, Donchian 15/8, stop 4xATR, robusto 3-TERCIOS +231/+592/+1589):
@@ -145,22 +147,9 @@ def main():
                 r = cc.requests.delete(f"{cc.BASE}/api/v1/positions/{deal_id}", headers=h, timeout=30)
                 print(f"     cierre -> {r.status_code} {r.text}")
             return
-        # 2) trailing del stop (largo solo sube, corto solo baja)
-        if price is not None:
-            if is_long:
-                new_stop = round(price - ATR_STOP * ev["atr"], 2)
-                mejora = cur_stop is None or new_stop > cur_stop
-            else:
-                new_stop = round(price + ATR_STOP * ev["atr"], 2)
-                mejora = cur_stop is None or new_stop < cur_stop
-            if mejora:
-                print(f"  >> TRAILING: muevo stop {cur_stop} -> {new_stop}")
-                if not (dry or status):
-                    r = cc.requests.put(f"{cc.BASE}/api/v1/positions/{deal_id}",
-                                        headers=h, json={"stopLevel": new_stop}, timeout=30)
-                    print(f"     ajuste -> {r.status_code} {r.text}")
-            else:
-                print(f"  Stop se mantiene en {cur_stop} (trailing solo a favor).")
+        # 2) el trailing lo maneja capital.com NATIVAMENTE (trailingStop en la entrada).
+        #    El bot ya NO ajusta el stop cada corrida -> se mueve en tiempo real, cada tick.
+        print(f"  Stop TRAILING NATIVO (capital.com lo mueve en tiempo real). stopLevel actual={cur_stop}")
         return
 
     # sin posicion -> buscar entrada (dos lados)
@@ -179,17 +168,16 @@ def main():
     entry = snap.get(entry_key)
     if entry is None:
         print("  Sin precio actual -> no entro."); return
-    if side == "BUY":
-        sl = round(entry - ATR_STOP * ev["atr"], 2)
-    else:
-        sl = round(entry + ATR_STOP * ev["atr"], 2)
-    body = {"epic": EPIC, "direction": side, "size": SIZE, "stopLevel": sl}
+    stop_dist = round(ATR_STOP * ev["atr"], 2)   # distancia del trailing en puntos (ATR_STOP x ATR)
+    body = {"epic": EPIC, "direction": side, "size": SIZE,
+            "trailingStop": True, "stopDistance": stop_dist}
     r = cc.post(h, "/api/v1/positions", body)
     if r.status_code not in (200, 201):
         print(f"  Orden NO colocada ({r.status_code}): {r.text}"); return
     ref = r.json().get("dealReference")
     conf = cc.get(h, f"/api/v1/confirms/{ref}").json()
-    print(f"  ORDEN COLOCADA: {side} {SIZE} {EPIC} @ {entry} SL={sl} ref={ref} status={conf.get('dealStatus')}")
+    print(f"  ORDEN COLOCADA: {side} {SIZE} {EPIC} @ {entry} TRAILING nativo dist={stop_dist}pts "
+          f"ref={ref} status={conf.get('dealStatus')}")
 
 
 if __name__ == "__main__":
