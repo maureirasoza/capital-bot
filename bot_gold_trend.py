@@ -35,12 +35,11 @@ SIZE     = 0.5           # Subido de 0.2 a 0.5 el 28-ago (a pedido, opcion moder
 ENT      = 15            # Donchian entrada: max/min de las ultimas 15 velas 1h
 EXIT     = 8             # Donchian salida: min/max de las ultimas 8 velas 1h
 ATR_LEN  = 14
-ATR_STOP = 1.0           # stop = 1 x ATR (inicial y trailing). Bajado a 1.0 el 28-ago A
-                         # PEDIDO EXPLICITO del usuario (override informado). OJO: el backtest
-                         # dice que 1.0 PIERDE (-260pt/2anos, no robusto, 33% acierto) porque
-                         # el stop tan pegado te saca en cada retroceso. El optimo es 4.0
-                         # (+885pt). El usuario lo sabe y prefiere el trailing apretado.
-                         # Revertir = volver a 4.0 (o 2.0).
+ATR_STOP = 0.5           # distancia del trailing nativo = 0.5 x ATR (~15 pts con ATR ~28).
+                         # Bajado a 0.5 el 28-ago A PEDIDO del usuario (achico el SL a ~15 pts
+                         # en la app para bloquear ganancia antes). OJO: mas apretado aun que 1.0
+                         # -> el backtest lo da perdedor; override informado del usuario. Se usa
+                         # ATR (no un 15 fijo) para que se adapte a la volatilidad. Revertir=4.0.
 BAR_MIN  = 60            # velas de 1 hora
 
 
