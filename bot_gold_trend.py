@@ -27,9 +27,9 @@ from datetime import datetime, timezone, timedelta
 import capital_client as cc
 
 EPIC     = "GOLD"
-SIZE     = 0.2           # distinto de Bollinger (2.0) y FVG (0.3) para el tracker.
-                         # Chico a proposito: el stop 4xATR es ancho (~$72 con ATR $18) ->
-                         # a 0.2 el riesgo es ~$10-14/trade (~1% de $1000). Subir tras validar.
+SIZE     = 0.5           # Subido de 0.2 a 0.5 el 28-ago (a pedido, opcion moderada elegida
+                         # sobre 1.5 que era muy agresiva). Riesgo ~$28/trade (stop 2xATR ~57pts,
+                         # ~3% de $1000). Distinto de Bollinger (2.0) y FVG (1.0) para el tracker.
 ENT      = 15            # Donchian entrada: max/min de las ultimas 15 velas 1h
 EXIT     = 8             # Donchian salida: min/max de las ultimas 8 velas 1h
 ATR_LEN  = 14

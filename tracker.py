@@ -52,8 +52,10 @@ def bot_de(epic, size):
             return 'ORO FVG (1.0)'
         if abs(size - 0.3) < 0.05:
             return 'ORO FVG legado (0.3)'
+        if abs(size - 0.5) < 0.05:
+            return 'ORO Trend 2-lados (0.5)'
         if abs(size - 0.2) < 0.03:
-            return 'ORO Trend 2-lados (0.2)'
+            return 'ORO Trend legado (0.2)'
         return f'ORO pruebas/historico (size {size})'
     if epic == 'COPPER':
         if size is not None and abs(size - 100) < 5:
