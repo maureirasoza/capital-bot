@@ -172,7 +172,14 @@ def main():
             "trailingStop": True, "stopDistance": stop_dist}
     r = cc.post(h, "/api/v1/positions", body)
     if r.status_code not in (200, 201):
-        print(f"  Orden NO colocada ({r.status_code}): {r.text}"); return
+        # FALLBACK: si el trailing nativo en la entrada falla, entrar con stop FIJO
+        # (mejor entrar que quedarse afuera; se veria en el log y se corrige).
+        print(f"  Trailing POST fallo ({r.status_code}): {r.text} -> reintento con stop fijo")
+        sl = round(entry - stop_dist, 2) if side == "BUY" else round(entry + stop_dist, 2)
+        r = cc.post(h, "/api/v1/positions",
+                    {"epic": EPIC, "direction": side, "size": SIZE, "stopLevel": sl})
+        if r.status_code not in (200, 201):
+            print(f"  Orden NO colocada ({r.status_code}): {r.text}"); return
     ref = r.json().get("dealReference")
     conf = cc.get(h, f"/api/v1/confirms/{ref}").json()
     print(f"  ORDEN COLOCADA: {side} {SIZE} {EPIC} @ {entry} TRAILING nativo dist={stop_dist}pts "
