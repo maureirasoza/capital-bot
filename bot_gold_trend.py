@@ -33,7 +33,11 @@ SIZE     = 0.2           # distinto de Bollinger (2.0) y FVG (0.3) para el track
 ENT      = 15            # Donchian entrada: max/min de las ultimas 15 velas 1h
 EXIT     = 8             # Donchian salida: min/max de las ultimas 8 velas 1h
 ATR_LEN  = 14
-ATR_STOP = 4.0           # stop = 4 x ATR (inicial y trailing)
+ATR_STOP = 2.0           # stop = 2 x ATR (inicial y trailing). Bajado de 4.0 a 2.0 el
+                         # 28-ago A PEDIDO del usuario (escalon a la mitad, para asegurar
+                         # ganancia antes). OJO: el backtest dice que 4.0 es mejor (+469 vs
+                         # +177 en 2 anos, y 2.0 es rob2 no ROB3) -> override informado.
+                         # Revertir = volver a 4.0.
 BAR_MIN  = 60            # velas de 1 hora
 
 
