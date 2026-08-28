@@ -123,6 +123,31 @@ def get_position(h):
     return None
 
 
+def acted_this_bar(h, bar0):
+    """True si ya se ABRIO una posicion de este bot en la vela 1h actual. Evita re-entrar
+    varias veces en la misma vela cuando el cron corre seguido (el backtest entra 1 vez por
+    ruptura -> este candado lo replica). Aperturas: openPrice None; cierres: con valor."""
+    frm = (bar0 - timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%S")
+    r = cc.get(h, f"/api/v1/history/activity?from={frm}")
+    if r.status_code != 200:
+        return False
+    for a in r.json().get("activities", []):
+        if a.get("epic") != EPIC or a.get("type") != "POSITION":
+            continue
+        det = a.get("details") or {}
+        if det.get("openPrice") is not None:
+            continue
+        if not _mysize(det.get("size")):
+            continue
+        try:
+            d = datetime.strptime(a["dateUTC"], "%Y-%m-%dT%H:%M:%S.%f")
+        except (KeyError, ValueError):
+            continue
+        if d >= bar0:
+            return True
+    return False
+
+
 def main():
     dry = "--dry-run" in sys.argv
     status = "--status" in sys.argv
@@ -163,6 +188,9 @@ def main():
           f"-> senal {side}")
     if status or dry:
         print("  [status/dry-run] No coloco la orden."); return
+    bar0 = current_bar_start()
+    if acted_this_bar(h, bar0):
+        print(f"  Ya se entro en esta vela 1h ({bar0}Z) -> candado, no re-entro."); return
     snap = cc.get(h, f"/api/v1/markets/{EPIC}").json().get("snapshot", {})
     entry = snap.get(entry_key)
     if entry is None:
