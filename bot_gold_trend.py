@@ -128,7 +128,9 @@ def acted_this_bar(h, bar0):
     varias veces en la misma vela cuando el cron corre seguido (el backtest entra 1 vez por
     ruptura -> este candado lo replica). Aperturas: openPrice None; cierres: con valor."""
     frm = (bar0 - timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%S")
-    r = cc.get(h, f"/api/v1/history/activity?from={frm}")
+    # OJO: detailed=true es OBLIGATORIO -> sin el, la API no manda 'details' (size/openPrice)
+    # y el candado no puede filtrar por tamano -> quedaba ciego y nunca bloqueaba (bug 01-sep).
+    r = cc.get(h, f"/api/v1/history/activity?from={frm}&detailed=true")
     if r.status_code != 200:
         return False
     for a in r.json().get("activities", []):
