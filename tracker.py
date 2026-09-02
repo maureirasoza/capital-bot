@@ -8,7 +8,7 @@ import capital_client as cc
 
 # Corte "inicio limpio": ignora trades anteriores a esta fecha (pruebas/historico revuelto).
 # Cambiable con:  python tracker.py --desde 2026-08-12T13:00
-DESDE = "2026-08-12T13:00"
+DESDE = "2026-09-02T14:50:24"   # RESET 02-sep: contabilidad desde cero. Saldo base $1119.98.
 if "--desde" in sys.argv:
     DESDE = sys.argv[sys.argv.index("--desde") + 1]
 
