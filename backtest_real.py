@@ -101,6 +101,93 @@ def run_trend():
     return simulate(O, H, L, C, T, bt.ATR_STOP), T[WIN], T[-1], len(C)
 
 
+# ----------------------- BOLLINGER (reversion 15m) -----------------------
+import os
+WIN_BOLL = 300     # velas que ve el bot Bollinger en vivo (capital.com max=300)
+
+
+def _import_bollinger():
+    d = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "gold-bot"))
+    if d not in sys.path:
+        sys.path.insert(0, d)
+    import bot_gold as bg
+    return bg
+
+
+def simulate_bollinger(O, H, L, C, T, bg, trail_mult):
+    """Bollinger reversion: entra por signal_last (BB+RSI+filtro ADX/EMA200), UNICA salida
+    trailing = trail_mult x ATR (sin TP, como en vivo). Sin look-ahead."""
+    n = len(C)
+    trades = []
+    pos = None
+    for t in range(WIN_BOLL, n):
+        lo = t - WIN_BOLL + 1
+        if pos is None:
+            sig = bg.signal_last(O[lo:t+1], H[lo:t+1], L[lo:t+1], C[lo:t+1])
+            if sig["side"] and sig["atr"]:
+                d = trail_mult * sig["atr"]
+                if sig["side"] == "BUY":
+                    pos = {"side": "long", "entry": C[t], "dist": d,
+                           "stop": C[t] - d, "extreme": C[t], "t_in": T[t]}
+                else:
+                    pos = {"side": "short", "entry": C[t], "dist": d,
+                           "stop": C[t] + d, "extreme": C[t], "t_in": T[t]}
+        else:
+            side = pos["side"]; exit_px = None
+            if side == "long" and L[t] <= pos["stop"]:
+                exit_px = pos["stop"]
+            elif side == "short" and H[t] >= pos["stop"]:
+                exit_px = pos["stop"]
+            if exit_px is not None:
+                gross = (exit_px - pos["entry"]) if side == "long" else (pos["entry"] - exit_px)
+                trades.append({"side": side, "entry": pos["entry"], "exit": exit_px,
+                               "t_in": pos["t_in"], "t_out": T[t], "gross": gross,
+                               "net": gross - 2 * SPREAD})
+                pos = None
+            else:
+                if side == "long":
+                    pos["extreme"] = max(pos["extreme"], H[t])
+                    pos["stop"] = max(pos["stop"], pos["extreme"] - pos["dist"])
+                else:
+                    pos["extreme"] = min(pos["extreme"], L[t])
+                    pos["stop"] = min(pos["stop"], pos["extreme"] + pos["dist"])
+    return trades
+
+
+def run_bollinger(sweep=False):
+    bg = _import_bollinger()
+    O, H, L, C, T = fetch_yahoo(interval="15m", rng="60d")  # Yahoo 15m -> max 60 dias
+    print("=" * 78)
+    print("BACKTEST REAL — bot BOLLINGER (mismo codigo que corre en vivo)")
+    print(f"  BB{bg.BB_LEN}/{bg.BB_MULT} RSI {bg.RSI_LOW}/{bg.RSI_HIGH} | filtro ADX>={bg.ADX_MIN}/EMA{bg.EMA_TREND}"
+          f" | size {bg.SIZE}")
+    print(f"Datos: Yahoo GC=F 15m | {len(C)} velas | {T[WIN_BOLL]:%Y-%m-%d} -> {T[-1]:%Y-%m-%d}")
+    print(f"Salida: SOLO trailing x ATR, sin TP. Neto = con spread {SPREAD}x2 pts/trade.")
+    print("=" * 78)
+    usd_pt = bg.SIZE * DOLLAR_PER_PT
+    if not sweep:
+        tr = simulate_bollinger(O, H, L, C, T, bg, 1.5)
+        if not tr:
+            print("Sin trades."); return
+        for label, key in (("BRUTO", "gross"), ("NETO (con spread)", "net")):
+            tot, wr, pf, mdd, terc, rob = stats(tr, key)
+            print(f"--- {label} (trailing 1.5xATR) ---  {len(tr)} trades")
+            print(f"  Puntos: {tot:+.1f} (~${tot*usd_pt:+.0f})  acierto {wr:.1f}%  PF {pf:.2f}  maxDD {mdd:+.0f}")
+            print(f"  3 tercios: {terc[0]:+.0f}/{terc[1]:+.0f}/{terc[2]:+.0f} -> ROB{rob}\n")
+        return
+    print(f"{'TRAIL':>6} | {'#tr':>4} | {'NETO':>7} | {'PF':>4} | {'acc%':>5} | "
+          f"{'maxDD':>6} | {'3 tercios':>20} | ROB")
+    print("-" * 78)
+    for m in (1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0):
+        tr = simulate_bollinger(O, H, L, C, T, bg, m)
+        if not tr:
+            print(f"{m:>5}x |  sin trades"); continue
+        tot, wr, pf, mdd, terc, rob = stats(tr, "net")
+        star = "  <<" if rob == 3 else ""
+        print(f"{m:>5}x | {len(tr):>4} | {tot:>+7.0f} | {pf:>4.2f} | {wr:>4.1f}% | "
+              f"{mdd:>+6.0f} | {terc[0]:>+5.0f}/{terc[1]:>+5.0f}/{terc[2]:>+5.0f} | ROB{rob}{star}")
+
+
 def stats(trades, key):
     vals = [x[key] for x in trades]
     tot = sum(vals)
@@ -148,7 +235,119 @@ def run_sweep():
         print("Ningun SL da ROB3 en este periodo.")
 
 
+# ----------------------- FVG (orden limite 15m) -----------------------
+WIN_FVG = 200      # velas que ve el bot FVG en vivo (capital.com max=200)
+
+
+def _import_fvg():
+    d = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "gold-fvg-bot"))
+    if d not in sys.path:
+        sys.path.insert(0, d)
+    import bot_fvg_limit as fv
+    return fv
+
+
+def _fvg_exit(pos, hi, lo):
+    """Precio de salida si la vela toca SL o TP (SL primero = conservador). None si no."""
+    if pos["side"] == "BUY":
+        if lo <= pos["sl"]:
+            return pos["sl"]
+        if hi >= pos["tp"]:
+            return pos["tp"]
+    else:
+        if hi >= pos["sl"]:
+            return pos["sl"]
+        if lo <= pos["tp"]:
+            return pos["tp"]
+    return None
+
+
+def simulate_fvg(O, H, L, C, T, fv):
+    """FVG: coloca orden LIMITE en el borde del hueco (SL_MULT/TP_R x hueco), se llena si el
+    precio vuelve al borde antes de expirar (FILL_WIN velas), sale por SL/TP. Sin look-ahead."""
+    n = len(C)
+    trades = []
+    pos = None
+    order = None
+    for t in range(WIN_FVG, n):
+        if pos:
+            ex = _fvg_exit(pos, H[t], L[t])
+            if ex is not None:
+                g = (ex - pos["entry"]) if pos["side"] == "BUY" else (pos["entry"] - ex)
+                trades.append({"side": pos["side"], "entry": pos["entry"], "exit": ex,
+                               "t_in": pos["t_in"], "t_out": T[t], "gross": g,
+                               "net": g - 2 * SPREAD})
+                pos = None
+            continue
+        if order:
+            hit = ((order["side"] == "BUY" and L[t] <= order["level"]) or
+                   (order["side"] == "SELL" and H[t] >= order["level"]))
+            if hit:
+                pos = {"side": order["side"], "entry": order["level"], "sl": order["sl"],
+                       "tp": order["tp"], "t_in": T[t]}
+                order = None
+                ex = _fvg_exit(pos, H[t], L[t])     # mismo-vela: movida rapida puede tocar SL/TP
+                if ex is not None:
+                    g = (ex - pos["entry"]) if pos["side"] == "BUY" else (pos["entry"] - ex)
+                    trades.append({"side": pos["side"], "entry": pos["entry"], "exit": ex,
+                                   "t_in": pos["t_in"], "t_out": T[t], "gross": g,
+                                   "net": g - 2 * SPREAD})
+                    pos = None
+                continue
+            elif t >= order["expiry"]:
+                order = None
+        if pos is None and order is None:
+            lo = t - WIN_FVG + 1
+            sig = fv.find_pending_fvg_ohlc(O[lo:t+1], H[lo:t+1], L[lo:t+1], C[lo:t+1])
+            if sig and sig.get("side"):
+                order = {"side": sig["side"], "level": sig["level"], "sl": sig["sl"],
+                         "tp": sig["tp"], "expiry": t + sig["remaining_bars"]}
+    return trades
+
+
+def run_fvg(sweep=False):
+    fv = _import_fvg()
+    O, H, L, C, T = fetch_yahoo(interval="15m", rng="60d")
+    print("=" * 78)
+    print("BACKTEST REAL — bot FVG (mismo codigo que corre en vivo)")
+    print(f"  SL {fv.SL_MULT}x / TP {fv.TP_R}x hueco | EMA{fv.EMA_TREND} | MIN_GAP {fv.MIN_GAP} "
+          f"MAX_GAP {fv.MAX_GAP}xATR | vida {fv.FILL_WIN}v | size {fv.SIZE}")
+    print(f"Datos: Yahoo GC=F 15m | {len(C)} velas | {T[WIN_FVG]:%Y-%m-%d} -> {T[-1]:%Y-%m-%d}")
+    print(f"Entrada: orden LIMITE en el borde. Neto = con spread {SPREAD}x2 pts/trade.")
+    print("=" * 78)
+    usd_pt = fv.SIZE * DOLLAR_PER_PT
+    if not sweep:
+        tr = simulate_fvg(O, H, L, C, T, fv)
+        if not tr:
+            print("Sin trades (ningun hueco se lleno en el periodo)."); return
+        for label, key in (("BRUTO", "gross"), ("NETO (con spread)", "net")):
+            tot, wr, pf, mdd, terc, rob = stats(tr, key)
+            print(f"--- {label} ---  {len(tr)} trades")
+            print(f"  Puntos: {tot:+.1f} (~${tot*usd_pt:+.0f})  acierto {wr:.1f}%  PF {pf:.2f}  maxDD {mdd:+.0f}")
+            print(f"  3 tercios: {terc[0]:+.0f}/{terc[1]:+.0f}/{terc[2]:+.0f} -> ROB{rob}\n")
+        return
+    print("Barrido de SL (x hueco), TP fijo en 1.0x:")
+    print(f"{'SL':>5} | {'#tr':>4} | {'NETO':>7} | {'PF':>4} | {'acc%':>5} | "
+          f"{'maxDD':>6} | {'3 tercios':>20} | ROB")
+    print("-" * 78)
+    orig = fv.SL_MULT
+    for m in (1.0, 1.25, 1.5, 2.0, 2.5, 3.0):
+        fv.SL_MULT = m
+        tr = simulate_fvg(O, H, L, C, T, fv)
+        if not tr:
+            print(f"{m:>4}x |  sin trades"); continue
+        tot, wr, pf, mdd, terc, rob = stats(tr, "net")
+        star = "  <<" if rob == 3 else ""
+        print(f"{m:>4}x | {len(tr):>4} | {tot:>+7.0f} | {pf:>4.2f} | {wr:>4.1f}% | "
+              f"{mdd:>+6.0f} | {terc[0]:>+5.0f}/{terc[1]:>+5.0f}/{terc[2]:>+5.0f} | ROB{rob}{star}")
+    fv.SL_MULT = orig
+
+
 def main():
+    if "--fvg" in sys.argv:
+        run_fvg(sweep="--sweep" in sys.argv); return
+    if "--bollinger" in sys.argv:
+        run_bollinger(sweep="--sweep" in sys.argv); return
     if "--sweep" in sys.argv:
         run_sweep(); return
     print("=" * 68)
