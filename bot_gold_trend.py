@@ -35,11 +35,13 @@ SIZE     = 0.5           # Subido de 0.2 a 0.5 el 28-ago (a pedido, opcion moder
 ENT      = 15            # Donchian entrada: max/min de las ultimas 15 velas 1h
 EXIT     = 8             # Donchian salida: min/max de las ultimas 8 velas 1h
 ATR_LEN  = 14
-ATR_STOP = 0.5           # distancia del trailing nativo = 0.5 x ATR (~15 pts con ATR ~28).
-                         # Bajado a 0.5 el 28-ago A PEDIDO del usuario (achico el SL a ~15 pts
-                         # en la app para bloquear ganancia antes). OJO: mas apretado aun que 1.0
-                         # -> el backtest lo da perdedor; override informado del usuario. Se usa
-                         # ATR (no un 15 fijo) para que se adapte a la volatilidad. Revertir=4.0.
+ATR_STOP = 5.0           # distancia del trailing nativo = 5.0 x ATR. Elegido 18-sep tras el
+                         # BACKTEST REAL (backtest_real.py --sweep, mismo codigo del bot sobre
+                         # GC=F 1h): el 0.5x que corria antes daba ROB1 debil (+598 pts, PF 1.13,
+                         # los 2 primeros tercios en perdida). El barrido mostro una MESETA robusta
+                         # de 4x a 10x (todo ROB3, ~+2600/+2800 pts, PF ~1.5); 5x es el pico
+                         # (+2812 pts, PF 1.50, maxDD -324). Trend-following NECESITA stop ancho.
+                         # Se usa ATR (no pts fijos) para adaptarse a la volatilidad.
 BAR_MIN  = 60            # velas de 1 hora
 
 
@@ -89,11 +91,9 @@ def fetch_closed(h):
     return O, H, L, C
 
 
-def evaluate(h):
-    O, H, L, C = fetch_closed(h)
-    if len(C) < ENT + ATR_LEN + 2:
-        sys.exit("Pocas velas para calcular.")
-    i = len(C) - 1
+def signal_at(O, H, L, C, i):
+    """Senal Donchian en la vela de indice i. PURA (sin red): misma logica que usa el
+    bot en vivo. El backtester importa ESTA funcion -> el test es identico al bot real."""
     atr = atr_series(H, L, C, ATR_LEN)[i]
     close = C[i]
     hh = max(H[i-ENT:i])           # canal de entrada (excluye la vela de decision)
@@ -105,6 +105,13 @@ def evaluate(h):
             "ex_hh": round(ex_hh, 2), "ex_ll": round(ex_ll, 2),
             "long_break": close > hh, "short_break": close < ll,
             "exit_long": close < ex_ll, "exit_short": close > ex_hh}
+
+
+def evaluate(h):
+    O, H, L, C = fetch_closed(h)
+    if len(C) < ENT + ATR_LEN + 2:
+        sys.exit("Pocas velas para calcular.")
+    return signal_at(O, H, L, C, len(C) - 1)
 
 
 def _mysize(v):
