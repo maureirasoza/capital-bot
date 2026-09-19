@@ -61,6 +61,10 @@ def bot_de(epic, size):
         if size is not None and abs(size - 100) < 5:
             return 'COBRE trend (100)'
         return f'COBRE pruebas/historico (size {size})'
+    if epic == 'US500':
+        if size is not None and abs(size - 1.0) < 0.05:
+            return 'SP500 Bollinger 15m (1.0)'
+        return f'SP500 pruebas/historico (size {size})'
     return f'otro ({epic})'
 
 

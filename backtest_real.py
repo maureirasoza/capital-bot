@@ -20,6 +20,7 @@ Metodologia anti-trampa:
 Uso: ./venv/bin/python backtest_real.py
 """
 import sys
+import os
 import json
 import urllib.request
 from datetime import datetime, timezone
@@ -30,8 +31,27 @@ SPREAD  = 0.3      # medio-spread por lado en puntos (aprox capital.com GOLD)
 DOLLAR_PER_PT = 1.0  # $ por punto por unidad de tamano (size 1.0 -> $1/pt, verificado)
 
 
+DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+
+
 def fetch_yahoo(symbol="GC=F", interval="1h", rng="730d"):
-    """OHLC 1h desde el chart API de Yahoo (sin librerias extra, solo urllib)."""
+    """OHLC desde el chart API de Yahoo (solo urllib), CONGELADO en disco.
+    La primera bajada se guarda en data/<symbol>_<interval>_<rng>.json y las siguientes la leen:
+    asi cada re-corrida del backtest es REPRODUCIBLE (mismo dataset), no depende de que Yahoo
+    este disponible, y el rango rodante ('60d') no cambia los numeros con el paso de los dias.
+    (Nota 19-sep: se verifico que Yahoo SI es determinista entre llamadas seguidas; una
+    discrepancia 91 vs 73 trades fue por correr el SP500 sobre el default GC=F, no por Yahoo.)
+    Para actualizar a proposito: pasar --refresh."""
+    os.makedirs(DATA_DIR, exist_ok=True)
+    safe = symbol.replace("=", "_").replace("^", "")
+    path = os.path.join(DATA_DIR, f"{safe}_{interval}_{rng}.json")
+    if os.path.exists(path) and "--refresh" not in sys.argv:
+        with open(path) as f:
+            d = json.load(f)
+        T = [datetime.fromisoformat(t) for t in d["T"]]
+        print(f"[datos congelados] {path.split(os.sep)[-1]}: {len(d['C'])} velas "
+              f"(bajado {d.get('fetched','?')[:16]}). --refresh para actualizar.")
+        return d["O"], d["H"], d["L"], d["C"], T
     url = (f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
            f"?interval={interval}&range={rng}")
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
@@ -47,6 +67,10 @@ def fetch_yahoo(symbol="GC=F", interval="1h", rng="730d"):
             continue
         O.append(o); H.append(h_); L.append(l_); C.append(c)
         T.append(datetime.fromtimestamp(ts[i], tz=timezone.utc))
+    with open(path, "w") as f:
+        json.dump({"O": O, "H": H, "L": L, "C": C, "T": [t.isoformat() for t in T],
+                   "fetched": datetime.now(timezone.utc).isoformat()}, f)
+    print(f"[datos bajados y congelados] {path.split(os.sep)[-1]}: {len(C)} velas")
     return O, H, L, C, T
 
 
@@ -343,7 +367,40 @@ def run_fvg(sweep=False):
     fv.SL_MULT = orig
 
 
+# ----------------------- SP500 (reversion BB 15m, US500) -----------------------
+def run_sp500(sweep=False):
+    """Reusa simulate_bollinger: bot_sp500.signal_last devuelve el mismo dict ({side, atr})."""
+    import bot_sp500 as sp     # mismo repo; codigo REAL del bot
+    # OJO: pasar symbol EXPLICITO. El default de fetch_yahoo es GC=F (oro): el 19-sep se corrio
+    # sin symbol y el backtest del SP500 uso datos de ORO (91 trades/PF 1.36 vs 73/PF 1.79 reales).
+    O, H, L, C, T = fetch_yahoo(symbol="ES=F", interval="15m", rng="60d")   # ES=F 15m ~ US500
+    weeks = (T[-1] - T[WIN_BOLL]).days / 7
+    print("=" * 78)
+    print("BACKTEST REAL — bot SP500 (mismo codigo que corre en vivo)")
+    print(f"  BB{sp.BB_LEN}/{sp.BB_MULT} 2 lados | trailing {sp.TRAIL_ATR}xATR sin TP | size {sp.SIZE}")
+    print(f"Datos: Yahoo ES=F 15m | {len(C)} velas | {T[WIN_BOLL]:%Y-%m-%d} -> {T[-1]:%Y-%m-%d} | {weeks:.0f} sem")
+    print(f"Neto = con spread {SPREAD}x2 pts/trade (US500 spread total 0.6).")
+    print("=" * 78)
+    usd_pt = sp.SIZE * DOLLAR_PER_PT
+    grid = (2.5, 3.0, 3.5, 4.0) if sweep else (sp.TRAIL_ATR,)
+    print(f"{'TRAIL':>6} | {'tr/sem':>6} | {'#tr':>4} | {'NETO':>7} | {'PF':>4} | {'acc%':>5} | "
+          f"{'maxDD':>6} | {'3 tercios':>20} | ROB")
+    print("-" * 78)
+    for m in grid:
+        tr = simulate_bollinger(O, H, L, C, T, sp, m)
+        if not tr:
+            print(f"{m:>5}x |  sin trades"); continue
+        tot, wr, pf, mdd, terc, rob = stats(tr, "net")
+        star = "  <<" if rob == 3 else ""
+        print(f"{m:>5}x | {len(tr)/weeks:>6.1f} | {len(tr):>4} | {tot:>+7.0f} | {pf:>4.2f} | {wr:>4.1f}% | "
+              f"{mdd:>+6.0f} | {terc[0]:>+5.0f}/{terc[1]:>+5.0f}/{terc[2]:>+5.0f} | ROB{rob}{star}")
+        if not sweep:
+            print(f"  ~${tot*usd_pt:+.0f} con size {sp.SIZE} | media/trade {tot/len(tr):+.2f} pts")
+
+
 def main():
+    if "--sp500" in sys.argv:
+        run_sp500(sweep="--sweep" in sys.argv); return
     if "--fvg" in sys.argv:
         run_fvg(sweep="--sweep" in sys.argv); return
     if "--bollinger" in sys.argv:

@@ -5,3 +5,6 @@
 venv/
 __pycache__/
 *.pyc
+
+# datasets congelados de backtest_real (se regeneran solos; ~700KB)
+data/

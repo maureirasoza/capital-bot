@@ -1,0 +1,26 @@
+name: Bot SP500 Bollinger 15m (demo)
+# 4o bot, EXPERIMENTAL (19-sep-2026): reversion Bollinger 2 lados en US500, velas 15m.
+# Gatillo UNICO: cron-job.org via workflow_dispatch (POST a /dispatches), cada 15 min:
+# crontab '1,16,31,46 * * * *' (1 min tras cada cierre 15m). Sin 'schedule' de GitHub para
+# evitar el doble disparo (race en el candado -> entradas duplicadas), igual que los otros bots.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - name: Ejecutar bot SP500 (Bollinger 2 lados, 15m)
+        env:
+          CAPITAL_API_KEY:      ${{ secrets.CAPITAL_API_KEY }}
+          CAPITAL_IDENTIFIER:   ${{ secrets.CAPITAL_IDENTIFIER }}
+          CAPITAL_API_PASSWORD: ${{ secrets.CAPITAL_API_PASSWORD }}
+          CAPITAL_ENV: demo
+          CAPITAL_ALLOW_LIVE: '0'
+        run: python bot_sp500.py
