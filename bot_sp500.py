@@ -5,8 +5,17 @@ Bot SP500 (US500) — reversion Bollinger de DOS LADOS — 15m — capital.com D
 POR QUE: el SP500 REVIERTE, no tendencia (el Donchian del oro es malo aqui). Objetivo del usuario:
 ~6-7 entradas/semana -> solo se logra en 15m; en 1h el edge robusto es de ~2.4/sem.
 
-ESTADO 19-sep-2026: **PAUSADO** (cron-job.org job 8473633 "Gatillar bot SP500" deshabilitado).
-  Sin dispatch no corre ni opera. Reactivar SOLO si se re-disena y pasa ROB3 sobre 300d REALES.
+ESTADO 19-sep-2026 (tarde): **REACTIVADO con ESTRATEGIA v2** (cron-job 8473633 re-habilitado).
+  Busqueda sobre 300d REALES de US500 (capital-demo/sp500_mejora.py: 329 variantes = 10 motores de
+  entrada reales x lado x salida): el BB puro (v1) NO es robusto; SI lo es el motor BB26/1.75+RSI del
+  bot de oro con RSI 30/70 SIN filtro, 2 lados, trailing 3-5x (meseta ROB3):
+    trail3.0 +1133 PF1.42 6.9/sem | trail4.0 +1931 PF1.84 maxDD-310 4.9/sem (+25/+937/+970) |
+    trail5.0 +1597 PF1.76 maxDD-192 3.8/sem | trail6.0 ROB2. Vecinos (RSI35/65 sin filtro, solo
+    largo, 4-5x) tambien ROB3 -> region robusta. Elegido 4.0x (centro, mejor neto, ~5 entradas/sem
+    para validar rapido). CAVEAT: primer tercio apenas positivo (+25): el edge se concentra en
+    mar-sep 2026 -> la validacion en vivo (demo) es la que manda. Size 1.0 a pedido (maxDD ~30%
+    de la cuenta; 0.5 lo dejaria en 15%). Historia de la pausa de la manana:
+  v1 PAUSADA por evidencia real. Reactivar SOLO si se re-disena y pasa ROB3 sobre 300d REALES.
 
 Validacion inicial 18-sep (sp500_screen.py + backtest_real --sp500, ventana movil 300):
   - Yahoo ES=F 15m, 60 dias (tope de Yahoo): 73 trades (7-8/sem), +480 pts, PF 1.79, acierto 40%,
@@ -21,10 +30,11 @@ de la propia capital.com, 300 dias, 20121 velas, nov-2025 -> sep-2026):
      usar siempre --source capital (datos reales, ~300d) antes de desplegar.
   - Patron que si se sostiene: la robustez (cuando existe) vive en el trailing ANCHO (3-3.5xATR).
 
-ESTRATEGIA (exactamente como se valido: BB26/1.75, dos lados, SIN filtros RSI/ADX):
-  - LARGO  si el cierre 15m CRUZA bajo la banda inferior (el cierre anterior estaba dentro).
-  - CORTO  si el cierre CRUZA sobre la banda superior.
-  - Salida UNICA: trailing = TRAIL_ATR x ATR(14), fijo al entrar. SIN TP.
+ESTRATEGIA v2 (19-sep, validada en 300d REALES): motor BB+RSI del bot de oro, RSI EXTREMO, sin filtro.
+  - LARGO  si el cierre 15m esta bajo la banda inferior (BB26/1.75) Y RSI(14) < 30, y esa
+           condicion NO se cumplia en la vela anterior (cruce). CORTO simetrico: sobre la banda
+           superior Y RSI > 70. Sin filtro direccional ADX/EMA (con filtro empeora en US500).
+  - Salida UNICA: trailing = TRAIL_ATR x ATR(14) = 4.0x, fijo al entrar. SIN TP.
   - Una posicion a la vez; candado: max 1 orden por vela 15m.
 TRAILING: intenta NATIVO (trailingStop) como el oro. US500 figura trailingStopsPreference
   NOT_AVAILABLE (el oro tambien y lo acepto igual) -> si lo rechaza, entra con stop FIJO y el bot
@@ -44,8 +54,12 @@ SIZE      = 1.0            # a pedido (19-sep). $1/pt por unidad (lotSize 1, USD
                            # -> el tamano identifica al bot para el candado y el tracker.
 BB_LEN    = 26
 BB_MULT   = 1.75
+RSI_LEN   = 14
+RSI_LOW   = 30             # 19-sep: entrada = motor BB+RSI del bot de oro con RSI EXTREMO 30/70 y
+RSI_HIGH  = 70             # SIN filtro direccional (validado en 300d REALES, ver docstring).
 ATR_LEN   = 14
-TRAIL_ATR = 3.5            # trailing = 3.5 x ATR (validado: zona robusta 3-3.5x; <=2.5x falla)
+TRAIL_ATR = 4.0            # trailing = 4.0 x ATR. Meseta ROB3 3-5x sobre 300d reales de US500;
+                           # 4.0 = centro, mejor neto/PF (+1931, PF 1.84) y ~5 trades/sem.
 BAR_MIN   = 15
 
 
@@ -96,22 +110,44 @@ def atr_series(h, l, c, n):
     return _rma(tr, n)
 
 
+def rsi_series(c, n):
+    g, l = [0.0], [0.0]
+    for i in range(1, len(c)):
+        d = c[i]-c[i-1]; g.append(max(d, 0.0)); l.append(max(-d, 0.0))
+    ag, al = _rma(g, n), _rma(l, n); out = [None]*len(c)
+    for i in range(len(c)):
+        if ag[i] is None: continue
+        out[i] = 100.0 if al[i] == 0 else 100 - 100/(1 + ag[i]/al[i])
+    return out
+
+
 def signal_last(o, hi, lo, c):
     """Senal en la ULTIMA vela de los arrays dados. PURA (sin red): misma logica que en vivo.
-    El backtester (backtest_real.py --sp500) importa ESTA funcion -> test identico al bot real."""
+    Motor = el del bot de oro (gold-bot/bot_gold.py): condicion BB+RSI en la vela i que NO se
+    cumplia en la i-1 (cruce), sin filtro direccional. Params RSI 30/70 (validado 300d reales).
+    El backtester (backtest_real.py --sp500 --source capital) importa ESTA funcion."""
     i = len(c) - 1
-    basis = sma(c, BB_LEN, i);   dev = BB_MULT * stdev_pop(c, BB_LEN, i)
-    b1    = sma(c, BB_LEN, i-1); d1  = BB_MULT * stdev_pop(c, BB_LEN, i-1)
+    basis = sma(c, BB_LEN, i); dev = BB_MULT * stdev_pop(c, BB_LEN, i)
     upper, lower = basis + dev, basis - dev
+    rsi = rsi_series(c, RSI_LEN)
     a = atr_series(hi, lo, c, ATR_LEN)[i]
     close = c[i]
+
+    def longC(j):
+        b = sma(c, BB_LEN, j); d = BB_MULT * stdev_pop(c, BB_LEN, j)
+        return c[j] < (b - d) and rsi[j] is not None and rsi[j] < RSI_LOW
+    def shortC(j):
+        b = sma(c, BB_LEN, j); d = BB_MULT * stdev_pop(c, BB_LEN, j)
+        return c[j] > (b + d) and rsi[j] is not None and rsi[j] > RSI_HIGH
+
     side = None
-    if close < lower and c[i-1] >= (b1 - d1):        # CRUCE bajo la banda inferior -> largo
+    if longC(i) and not longC(i-1):        # cierre bajo la banda + RSI<30, recien cumplido -> largo
         side = "BUY"
-    elif close > upper and c[i-1] <= (b1 + d1):      # CRUCE sobre la banda superior -> corto
+    elif shortC(i) and not shortC(i-1):    # cierre sobre la banda + RSI>70, recien cumplido -> corto
         side = "SELL"
     return {"close": round(close, 1), "upper": round(upper, 1), "lower": round(lower, 1),
-            "atr": round(a, 2) if a else None, "side": side}
+            "rsi": round(rsi[i], 1) if rsi[i] else None,
+            "atr": round(a, 1) if a else None, "side": side}
 
 
 def evaluate(h):
