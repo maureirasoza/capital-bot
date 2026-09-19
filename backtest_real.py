@@ -479,7 +479,40 @@ def run_sp500(sweep=False):
             print(f"  ~${tot*usd_pt:+.0f} con size {sp.SIZE} | media/trade {tot/len(tr):+.2f} pts")
 
 
+def run_us30(sweep=False):
+    """US30 (Dow) reversion BB+RSI 2 lados 15m: mismo motor que bot_sp500 v2. Solo datos REALES
+    (no hay proxy Yahoo cableado): usa fetch_capital('US30','MINUTE_15',300) siempre."""
+    import bot_us30 as us
+    src, days = _source()
+    O, H, L, C, T = fetch_capital("US30", "MINUTE_15", days if src == "capital" else 300)
+    weeks = (T[-1] - T[WIN_BOLL]).days / 7
+    print("=" * 78)
+    print("BACKTEST REAL — bot US30 (mismo codigo que corre en vivo)")
+    print(f"  BB{us.BB_LEN}/{us.BB_MULT} RSI {us.RSI_LOW}/{us.RSI_HIGH} sin filtro, 2 lados | trailing {us.TRAIL_ATR}xATR | size {us.SIZE}")
+    print(f"Datos: capital.com US30 15m REAL | {len(C)} velas | {T[WIN_BOLL]:%Y-%m-%d} -> {T[-1]:%Y-%m-%d} | {weeks:.0f} sem")
+    print(f"Neto = con spread 1.0x2 pts/trade (US30 spread total ~2).")
+    print("=" * 78)
+    global SPREAD
+    old = SPREAD; SPREAD = 1.0
+    grid = (3.0, 4.0, 5.0, 6.0, 7.0) if sweep else (us.TRAIL_ATR,)
+    print(f"{'TRAIL':>6} | {'tr/sem':>6} | {'#tr':>4} | {'NETO':>7} | {'PF':>4} | {'acc%':>5} | {'maxDD':>6} | {'3 tercios':>20} | ROB")
+    print("-" * 78)
+    for m in grid:
+        tr = simulate_bollinger(O, H, L, C, T, us, m)
+        if not tr:
+            print(f"{m:>5}x |  sin trades"); continue
+        tot, wr, pf, mdd, terc, rob = stats(tr, "net")
+        star = "  <<" if rob == 3 else ""
+        print(f"{m:>5}x | {len(tr)/weeks:>6.1f} | {len(tr):>4} | {tot:>+7.0f} | {pf:>4.2f} | {wr:>4.1f}% | "
+              f"{mdd:>+6.0f} | {terc[0]:>+5.0f}/{terc[1]:>+5.0f}/{terc[2]:>+5.0f} | ROB{rob}{star}")
+        if not sweep:
+            print(f"  ~${tot*us.SIZE:+.0f} con size {us.SIZE} | media/trade {tot/len(tr):+.2f} pts | maxDD ~${abs(mdd)*us.SIZE:.0f}")
+    SPREAD = old
+
+
 def main():
+    if "--us30" in sys.argv:
+        run_us30(sweep="--sweep" in sys.argv); return
     if "--sp500" in sys.argv:
         run_sp500(sweep="--sweep" in sys.argv); return
     if "--fvg" in sys.argv:
