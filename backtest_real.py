@@ -269,12 +269,13 @@ def run_bollinger(sweep=False):
     print("=" * 78)
     usd_pt = bg.SIZE * DOLLAR_PER_PT
     if not sweep:
-        tr = simulate_bollinger(O, H, L, C, T, bg, 1.5)
+        m = getattr(bg, "TRAIL_ATR", 1.5)       # constante REAL del bot (5.0 desde 19-sep)
+        tr = simulate_bollinger(O, H, L, C, T, bg, m)
         if not tr:
             print("Sin trades."); return
         for label, key in (("BRUTO", "gross"), ("NETO (con spread)", "net")):
             tot, wr, pf, mdd, terc, rob = stats(tr, key)
-            print(f"--- {label} (trailing 1.5xATR) ---  {len(tr)} trades")
+            print(f"--- {label} (trailing {m}xATR) ---  {len(tr)} trades")
             print(f"  Puntos: {tot:+.1f} (~${tot*usd_pt:+.0f})  acierto {wr:.1f}%  PF {pf:.2f}  maxDD {mdd:+.0f}")
             print(f"  3 tercios: {terc[0]:+.0f}/{terc[1]:+.0f}/{terc[2]:+.0f} -> ROB{rob}\n")
         return

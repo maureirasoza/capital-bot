@@ -46,8 +46,10 @@ def bot_de(epic, size):
     if epic == 'GOLD':
         if size is None:
             return 'ORO (sin dato de tamano)'
+        if abs(size - 0.8) < 0.05:
+            return 'ORO Bollinger (0.8)'       # desde 19-sep (trailing 5xATR)
         if abs(size - 2.0) < 0.05:
-            return 'ORO Bollinger (2.0)'
+            return 'ORO Bollinger legado (2.0)'
         if abs(size - 1.0) < 0.05:
             return 'ORO FVG (1.0)'
         if abs(size - 0.3) < 0.05:
