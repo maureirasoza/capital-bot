@@ -5,12 +5,21 @@ Bot SP500 (US500) — reversion Bollinger de DOS LADOS — 15m — capital.com D
 POR QUE: el SP500 REVIERTE, no tendencia (el Donchian del oro es malo aqui). Objetivo del usuario:
 ~6-7 entradas/semana -> solo se logra en 15m; en 1h el edge robusto es de ~2.4/sem.
 
-Validado 18-sep-2026 (sp500_screen.py + re-validacion con ventana movil 300, como corre en vivo):
-  - ES=F 15m, 60 dias (tope de Yahoo): 7.3 trades/sem, +480 pts, PF 1.79, acierto 40%, maxDD -202.
-  - La MISMA logica es ROB3 en 1h/2.4 anos (PF 1.59): robustez cruzada de timeframes. Se prefirio
-    sobre BB20/1.5 (mejor en 15m pero debil en 1h) justamente por eso.
-  - CAVEAT: solo 60d de 15m y primer tercio plano -> confianza MEDIA. Demo, acumular trades reales.
-  - 4a vez que se repite el patron: la robustez vive en el trailing ANCHO (3-3.5xATR).
+ESTADO 19-sep-2026: **PAUSADO** (cron-job.org job 8473633 "Gatillar bot SP500" deshabilitado).
+  Sin dispatch no corre ni opera. Reactivar SOLO si se re-disena y pasa ROB3 sobre 300d REALES.
+
+Validacion inicial 18-sep (sp500_screen.py + backtest_real --sp500, ventana movil 300):
+  - Yahoo ES=F 15m, 60 dias (tope de Yahoo): 73 trades (7-8/sem), +480 pts, PF 1.79, acierto 40%,
+    maxDD -202, tercios -6/+247/+238 (ROB2). La misma logica ROB3 en 1h/2.4 anos (PF 1.59) ->
+    se creyo "robustez cruzada de timeframes". Se prefirio sobre BB20/1.5 por eso.
+RE-VALIDACION 19-sep sobre el INSTRUMENTO REAL (backtest_real --sp500 --source capital: US500 15m
+de la propia capital.com, 300 dias, 20121 velas, nov-2025 -> sep-2026):
+  - 3.5x: 379 trades, +40 pts, PF 1.01, maxDD -803, tercios -437/-102/+579 -> ROB1 (breakeven).
+  - Barrido 2.5x-4x: NINGUN ROB3; todos con el primer tercio muy negativo (-327 a -529).
+  => El +480/PF 1.79 de 60 dias era un ARTEFACTO del regimen reciente (jul-sep 2026), no un edge.
+     El chequeo cruzado en 1h dio falsa confianza. LECCION: 60d de 15m NO alcanzan para validar;
+     usar siempre --source capital (datos reales, ~300d) antes de desplegar.
+  - Patron que si se sostiene: la robustez (cuando existe) vive en el trailing ANCHO (3-3.5xATR).
 
 ESTRATEGIA (exactamente como se valido: BB26/1.75, dos lados, SIN filtros RSI/ADX):
   - LARGO  si el cierre 15m CRUZA bajo la banda inferior (el cierre anterior estaba dentro).

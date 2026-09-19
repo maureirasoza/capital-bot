@@ -23,7 +23,7 @@ import sys
 import os
 import json
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import bot_gold_trend as bt      # <-- codigo REAL del bot en vivo (signal_at, params)
 
 WIN     = 200      # velas que ve el bot en vivo (capital.com max=200)
@@ -74,6 +74,76 @@ def fetch_yahoo(symbol="GC=F", interval="1h", rng="730d"):
     return O, H, L, C, T
 
 
+def fetch_capital(epic="US500", resolution="MINUTE_15", days=300, step_days=10):
+    """OHLC (mid = (bid+ask)/2, IGUAL que _mid de los bots) desde la PROPIA capital.com,
+    paginando ventanas from/to de step_days (max=1000 velas ~ 10 dias de 15m).
+    19-sep: se verifico que capital.com sirve US500 15m hasta 300+ dias atras -> permite validar
+    sobre el INSTRUMENTO REAL (precio de la venue) en vez del proxy Yahoo (ES=F/GC=F, tope 60d).
+    Congelado en data/capital_<epic>_<res>_<days>d.json; --refresh para re-bajar."""
+    os.makedirs(DATA_DIR, exist_ok=True)
+    path = os.path.join(DATA_DIR, f"capital_{epic}_{resolution}_{days}d.json")
+    if os.path.exists(path) and "--refresh" not in sys.argv:
+        with open(path) as f:
+            d = json.load(f)
+        T = [datetime.fromisoformat(t) for t in d["T"]]
+        print(f"[datos congelados] {path.split(os.sep)[-1]}: {len(d['C'])} velas "
+              f"(bajado {d.get('fetched','?')[:16]}). --refresh para actualizar.")
+        return d["O"], d["H"], d["L"], d["C"], T
+    import time
+    import capital_client as cc
+    mid = lambda x: (x["bid"] + x["ask"]) / 2 if isinstance(x, dict) else x
+    h = cc.login()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    rows = {}
+    d0 = 0
+    while d0 < days:
+        d1 = min(d0 + step_days, days)
+        frm = (now - timedelta(days=d1)).strftime("%Y-%m-%dT%H:%M:%S")
+        to = (now - timedelta(days=d0)).strftime("%Y-%m-%dT%H:%M:%S")
+        r = cc.get(h, f"/api/v1/prices/{epic}?resolution={resolution}&from={frm}&to={to}&max=1000")
+        if r.status_code == 200:
+            for p in r.json().get("prices", []):
+                t = (p.get("snapshotTimeUTC") or p.get("snapshotTime") or "").replace("Z", "")
+                try:
+                    dt = datetime.fromisoformat(t)
+                except ValueError:
+                    continue
+                rows[dt] = (mid(p["openPrice"]), mid(p["highPrice"]), mid(p["lowPrice"]), mid(p["closePrice"]))
+        else:
+            print(f"  ventana {d1}-{d0}d: HTTP {r.status_code} (se omite)")
+        d0 = d1
+        time.sleep(0.4)     # cortesia con la API
+    ts = sorted(rows)
+    O = [rows[t][0] for t in ts]; H = [rows[t][1] for t in ts]
+    L = [rows[t][2] for t in ts]; C = [rows[t][3] for t in ts]
+    T = [t.replace(tzinfo=timezone.utc) for t in ts]
+    with open(path, "w") as f:
+        json.dump({"O": O, "H": H, "L": L, "C": C, "T": [t.isoformat() for t in T],
+                   "fetched": datetime.now(timezone.utc).isoformat()}, f)
+    print(f"[capital.com bajado y congelado] {path.split(os.sep)[-1]}: {len(C)} velas "
+          f"({T[0]:%Y-%m-%d} -> {T[-1]:%Y-%m-%d})")
+    return O, H, L, C, T
+
+
+def _source():
+    """--source capital|yahoo (default yahoo, para no cambiar resultados previos). --days N."""
+    src = "yahoo"
+    if "--source" in sys.argv:
+        src = sys.argv[sys.argv.index("--source") + 1].lower()
+    days = 300
+    if "--days" in sys.argv:
+        days = int(sys.argv[sys.argv.index("--days") + 1])
+    return src, days
+
+
+def _fetch_15m(epic_capital, symbol_yahoo):
+    """Datos 15m para un bot: capital.com (real, hasta ~300d) o Yahoo (proxy, tope 60d)."""
+    src, days = _source()
+    if src == "capital":
+        return fetch_capital(epic_capital, "MINUTE_15", days), f"capital.com {epic_capital} 15m REAL ({days}d)"
+    return fetch_yahoo(symbol_yahoo, "15m", "60d"), f"Yahoo {symbol_yahoo} 15m (proxy, 60d)"
+
+
 def simulate(O, H, L, C, T, stop_mult):
     """Simula el bot TREND con un trailing = stop_mult x ATR. Sin look-ahead:
     el stop se chequea con la vela actual ANTES de subirlo con su maximo."""
@@ -120,9 +190,18 @@ def simulate(O, H, L, C, T, stop_mult):
     return trades
 
 
+def _fetch_1h():
+    """Datos 1h del oro: --source capital -> GOLD REAL de capital.com (HOUR, ~300d);
+    default Yahoo GC=F 1h (730d, proxy). Mismo patron que _fetch_15m."""
+    src, days = _source()
+    if src == "capital":
+        return fetch_capital("GOLD", "HOUR", days), f"capital.com GOLD 1h REAL ({days}d)"
+    return fetch_yahoo(), "Yahoo GC=F 1h (proxy, 730d)"
+
+
 def run_trend():
-    O, H, L, C, T = fetch_yahoo()
-    return simulate(O, H, L, C, T, bt.ATR_STOP), T[WIN], T[-1], len(C)
+    (O, H, L, C, T), fuente = _fetch_1h()
+    return simulate(O, H, L, C, T, bt.ATR_STOP), T[WIN], T[-1], len(C), fuente
 
 
 # ----------------------- BOLLINGER (reversion 15m) -----------------------
@@ -180,12 +259,12 @@ def simulate_bollinger(O, H, L, C, T, bg, trail_mult):
 
 def run_bollinger(sweep=False):
     bg = _import_bollinger()
-    O, H, L, C, T = fetch_yahoo(interval="15m", rng="60d")  # Yahoo 15m -> max 60 dias
+    (O, H, L, C, T), fuente = _fetch_15m("GOLD", "GC=F")   # --source capital -> GOLD real (~300d)
     print("=" * 78)
     print("BACKTEST REAL — bot BOLLINGER (mismo codigo que corre en vivo)")
     print(f"  BB{bg.BB_LEN}/{bg.BB_MULT} RSI {bg.RSI_LOW}/{bg.RSI_HIGH} | filtro ADX>={bg.ADX_MIN}/EMA{bg.EMA_TREND}"
           f" | size {bg.SIZE}")
-    print(f"Datos: Yahoo GC=F 15m | {len(C)} velas | {T[WIN_BOLL]:%Y-%m-%d} -> {T[-1]:%Y-%m-%d}")
+    print(f"Datos: {fuente} | {len(C)} velas | {T[WIN_BOLL]:%Y-%m-%d} -> {T[-1]:%Y-%m-%d}")
     print(f"Salida: SOLO trailing x ATR, sin TP. Neto = con spread {SPREAD}x2 pts/trade.")
     print("=" * 78)
     usd_pt = bg.SIZE * DOLLAR_PER_PT
@@ -231,11 +310,11 @@ def stats(trades, key):
 
 
 def run_sweep():
-    O, H, L, C, T = fetch_yahoo()
+    (O, H, L, C, T), fuente = _fetch_1h()
     grid = [0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0, 6.0, 8.0, 10.0]
     print("=" * 78)
     print("BARRIDO DE SL (trailing = mult x ATR) — bot TREND, mismo codigo que en vivo")
-    print(f"Datos: Yahoo GC=F 1h | {len(C)} velas | {T[WIN]:%Y-%m-%d} -> {T[-1]:%Y-%m-%d}")
+    print(f"Datos: {fuente} | {len(C)} velas | {T[WIN]:%Y-%m-%d} -> {T[-1]:%Y-%m-%d}")
     print(f"Neto = con spread {SPREAD}x2 pts/trade. Se busca ZONA estable, no el pico.")
     print("=" * 78)
     print(f"{'SL':>5} | {'#tr':>4} | {'NETO':>7} | {'PF':>4} | {'acc%':>5} | "
@@ -331,12 +410,12 @@ def simulate_fvg(O, H, L, C, T, fv):
 
 def run_fvg(sweep=False):
     fv = _import_fvg()
-    O, H, L, C, T = fetch_yahoo(interval="15m", rng="60d")
+    (O, H, L, C, T), fuente = _fetch_15m("GOLD", "GC=F")   # --source capital -> GOLD real (~300d)
     print("=" * 78)
     print("BACKTEST REAL — bot FVG (mismo codigo que corre en vivo)")
     print(f"  SL {fv.SL_MULT}x / TP {fv.TP_R}x hueco | EMA{fv.EMA_TREND} | MIN_GAP {fv.MIN_GAP} "
           f"MAX_GAP {fv.MAX_GAP}xATR | vida {fv.FILL_WIN}v | size {fv.SIZE}")
-    print(f"Datos: Yahoo GC=F 15m | {len(C)} velas | {T[WIN_FVG]:%Y-%m-%d} -> {T[-1]:%Y-%m-%d}")
+    print(f"Datos: {fuente} | {len(C)} velas | {T[WIN_FVG]:%Y-%m-%d} -> {T[-1]:%Y-%m-%d}")
     print(f"Entrada: orden LIMITE en el borde. Neto = con spread {SPREAD}x2 pts/trade.")
     print("=" * 78)
     usd_pt = fv.SIZE * DOLLAR_PER_PT
@@ -371,14 +450,15 @@ def run_fvg(sweep=False):
 def run_sp500(sweep=False):
     """Reusa simulate_bollinger: bot_sp500.signal_last devuelve el mismo dict ({side, atr})."""
     import bot_sp500 as sp     # mismo repo; codigo REAL del bot
-    # OJO: pasar symbol EXPLICITO. El default de fetch_yahoo es GC=F (oro): el 19-sep se corrio
+    # OJO: symbol/epic EXPLICITOS. El default de fetch_yahoo es GC=F (oro): el 19-sep se corrio
     # sin symbol y el backtest del SP500 uso datos de ORO (91 trades/PF 1.36 vs 73/PF 1.79 reales).
-    O, H, L, C, T = fetch_yahoo(symbol="ES=F", interval="15m", rng="60d")   # ES=F 15m ~ US500
+    # --source capital -> US500 REAL de capital.com (~300d); default Yahoo ES=F (proxy, 60d).
+    (O, H, L, C, T), fuente = _fetch_15m("US500", "ES=F")
     weeks = (T[-1] - T[WIN_BOLL]).days / 7
     print("=" * 78)
     print("BACKTEST REAL — bot SP500 (mismo codigo que corre en vivo)")
     print(f"  BB{sp.BB_LEN}/{sp.BB_MULT} 2 lados | trailing {sp.TRAIL_ATR}xATR sin TP | size {sp.SIZE}")
-    print(f"Datos: Yahoo ES=F 15m | {len(C)} velas | {T[WIN_BOLL]:%Y-%m-%d} -> {T[-1]:%Y-%m-%d} | {weeks:.0f} sem")
+    print(f"Datos: {fuente} | {len(C)} velas | {T[WIN_BOLL]:%Y-%m-%d} -> {T[-1]:%Y-%m-%d} | {weeks:.0f} sem")
     print(f"Neto = con spread {SPREAD}x2 pts/trade (US500 spread total 0.6).")
     print("=" * 78)
     usd_pt = sp.SIZE * DOLLAR_PER_PT
@@ -411,10 +491,10 @@ def main():
     print("BACKTEST REAL — bot TREND (mismo codigo que corre en vivo)")
     print(f"  Donchian {bt.ENT}/{bt.EXIT} | trailing {bt.ATR_STOP}xATR | size {bt.SIZE}")
     print("=" * 68)
-    trades, t0, t1, nbars = run_trend()
+    trades, t0, t1, nbars, fuente = run_trend()
     if not trades:
         print("Sin trades en el periodo."); return
-    print(f"Datos: Yahoo GC=F 1h | {nbars} velas | {t0:%Y-%m-%d} -> {t1:%Y-%m-%d}")
+    print(f"Datos: {fuente} | {nbars} velas | {t0:%Y-%m-%d} -> {t1:%Y-%m-%d}")
     print(f"Trades: {len(trades)} | spread modelado: {SPREAD}x2 pts/trade\n")
 
     for label, key in (("BRUTO (sin spread)", "gross"), ("NETO  (con spread)", "net")):
