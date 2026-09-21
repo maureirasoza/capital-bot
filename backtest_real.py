@@ -28,6 +28,15 @@ import bot_gold_trend as bt      # <-- codigo REAL del bot en vivo (signal_at, p
 
 WIN     = 200      # velas que ve el bot en vivo (capital.com max=200)
 SPREAD  = 0.3      # medio-spread por lado en puntos (aprox capital.com GOLD)
+# DESLIZ DE EJECUCION (21-sep): medido comparando el cierre de la vela de senal contra el precio
+# real de entrada de los bots en vivo. Las entradas A MERCADO llegan ~1 min tarde y pagan un coste
+# que el backtest NO modelaba: GOLD Bollinger +1.0 a +2.4 pts, Trend +0.4 a +1.1; en cambio la
+# entrada por LIMITE del FVG paga ~0 (+0.2 medio, -0.7 mediana) porque se llena en el nivel exacto.
+# La medicion varia con la ventana, asi que no se fija un valor: se pasa con --slip N y se corre
+# un analisis de sensibilidad (cuanto desliz aguanta cada config antes de dejar de ser ROB3).
+SLIP = 0.0         # puntos extra de coste por operacion (0 = comportamiento previo)
+if "--slip" in sys.argv:
+    SLIP = float(sys.argv[sys.argv.index("--slip") + 1])
 DOLLAR_PER_PT = 1.0  # $ por punto por unidad de tamano (size 1.0 -> $1/pt, verificado)
 
 
@@ -169,7 +178,7 @@ def simulate(O, H, L, C, T, stop_mult):
                 gross = (exit_px - pos["entry"]) if side == "long" else (pos["entry"] - exit_px)
                 trades.append({"side": side, "entry": pos["entry"], "exit": exit_px,
                                "t_in": pos["t_in"], "t_out": T[t], "gross": gross,
-                               "net": gross - 2 * SPREAD, "reason": reason})
+                               "net": gross - 2 * SPREAD - SLIP, "reason": reason})
                 pos = None; exited = True
             else:
                 if side == "long":
@@ -245,7 +254,7 @@ def simulate_bollinger(O, H, L, C, T, bg, trail_mult):
                 gross = (exit_px - pos["entry"]) if side == "long" else (pos["entry"] - exit_px)
                 trades.append({"side": side, "entry": pos["entry"], "exit": exit_px,
                                "t_in": pos["t_in"], "t_out": T[t], "gross": gross,
-                               "net": gross - 2 * SPREAD})
+                               "net": gross - 2 * SPREAD - SLIP})
                 pos = None
             else:
                 if side == "long":
@@ -380,7 +389,7 @@ def simulate_fvg(O, H, L, C, T, fv):
                 g = (ex - pos["entry"]) if pos["side"] == "BUY" else (pos["entry"] - ex)
                 trades.append({"side": pos["side"], "entry": pos["entry"], "exit": ex,
                                "t_in": pos["t_in"], "t_out": T[t], "gross": g,
-                               "net": g - 2 * SPREAD})
+                               "net": g - 2 * SPREAD - SLIP})
                 pos = None
             continue
         if order:
@@ -395,7 +404,7 @@ def simulate_fvg(O, H, L, C, T, fv):
                     g = (ex - pos["entry"]) if pos["side"] == "BUY" else (pos["entry"] - ex)
                     trades.append({"side": pos["side"], "entry": pos["entry"], "exit": ex,
                                    "t_in": pos["t_in"], "t_out": T[t], "gross": g,
-                                   "net": g - 2 * SPREAD})
+                                   "net": g - 2 * SPREAD - SLIP})
                     pos = None
                 continue
             elif t >= order["expiry"]:
