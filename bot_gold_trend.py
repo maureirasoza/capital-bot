@@ -130,6 +130,19 @@ def get_position(h):
     return None
 
 
+def has_working_order(h):
+    """True si ya hay una orden LIMITE pendiente de este bot (evita duplicarla). El candado
+    acted_this_bar solo mira POSITION, asi que una orden pendiente necesita su propia guarda."""
+    r = cc.get(h, "/api/v1/workingorders")
+    if r.status_code != 200:
+        return False
+    for w in r.json().get("workingOrders", []):
+        d = w.get("workingOrderData", {})
+        if d.get("epic") == EPIC and _mysize(d.get("orderSize")):
+            return True
+    return False
+
+
 def acted_this_bar(h, bar0):
     """True si ya se ABRIO una posicion de este bot en la vela 1h actual. Evita re-entrar
     varias veces en la misma vela cuando el cron corre seguido (el backtest entra 1 vez por
@@ -200,11 +213,35 @@ def main():
     bar0 = current_bar_start()
     if acted_this_bar(h, bar0):
         print(f"  Ya se entro en esta vela 1h ({bar0}Z) -> candado, no re-entro."); return
+    if has_working_order(h):
+        print("  Ya hay orden limite pendiente -> no coloco otra."); return
     snap = cc.get(h, f"/api/v1/markets/{EPIC}").json().get("snapshot", {})
     entry = snap.get(entry_key)
     if entry is None:
         print("  Sin precio actual -> no entro."); return
     stop_dist = round(ATR_STOP * ev["atr"], 2)   # distancia del trailing en puntos (ATR_STOP x ATR)
+    # ENTRADA POR LIMITE AL CIERRE DE LA SENAL (21-sep-2026). Se midio en vivo que entrar a
+    # MERCADO ~1 min tras el cierre cuesta +0.4 a +1.1 pts de desliz que el backtest no modelaba,
+    # y eso bastaba para bajar este bot de ROB3 a ROB2. Con orden LIMITE en el cierre exacto
+    # (limite_vs_mercado.py, GOLD 1h 600d reales, incluyendo la salida por canal Donchian):
+    # mercado c/desliz +1727 PF1.30 ROB2  ->  LIMITE +2002 PF1.37 ROB3, perdiendo 1 de 306 trades.
+    level = ev["close"]
+    es_buy = (side == "BUY")
+    # Si el mercado ya esta igual o MEJOR que el cierre, entrar a mercado (precio favorable).
+    if not ((es_buy and entry <= level) or ((not es_buy) and entry >= level)):
+        expiry = (bar0 + timedelta(minutes=BAR_MIN)).strftime("%Y-%m-%dT%H:%M:%S")
+        rl = cc.post(h, "/api/v1/workingorders",
+                     {"epic": EPIC, "direction": side, "size": SIZE, "level": level,
+                      "type": "LIMIT", "trailingStop": True, "stopDistance": stop_dist,
+                      "goodTillDate": expiry})
+        if rl.status_code in (200, 201):
+            ref = rl.json().get("dealReference")
+            conf = cc.get(h, f"/api/v1/confirms/{ref}").json()
+            print(f"  ORDEN LIMITE: {side} {SIZE} {EPIC} @ {level} (mercado {entry}) "
+                  f"TRAILING {stop_dist}pts ({ATR_STOP}xATR) vence {expiry} "
+                  f"ref={ref} status={conf.get('dealStatus')}")
+            return
+        print(f"  Orden limite fallo ({rl.status_code}): {rl.text[:120]} -> entro a MERCADO")
     body = {"epic": EPIC, "direction": side, "size": SIZE,
             "trailingStop": True, "stopDistance": stop_dist}
     r = cc.post(h, "/api/v1/positions", body)
