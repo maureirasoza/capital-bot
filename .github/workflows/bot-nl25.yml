@@ -1,0 +1,25 @@
+name: Bot NL25 Holanda 25 Bollinger-RSI 15m (demo)
+# 7o bot (2-oct-2026): reversion BB26/1.75+RSI30/70 de 2 lados en NL25 (Holanda 25), velas 15m, trailing 2xATR. Sesion 06-20 UTC: fuera de sesion sale sin operar.
+# Gatillo UNICO: cron-job.org via workflow_dispatch, crontab '1,16,31,46 * * * *' (UTC).
+# Sin 'schedule' de GitHub (evita doble disparo / entradas duplicadas), igual que los otros bots.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - name: Ejecutar bot NL25 (Bollinger+RSI 2 lados, 15m)
+        env:
+          CAPITAL_API_KEY:      ${{ secrets.CAPITAL_API_KEY }}
+          CAPITAL_IDENTIFIER:   ${{ secrets.CAPITAL_IDENTIFIER }}
+          CAPITAL_API_PASSWORD: ${{ secrets.CAPITAL_API_PASSWORD }}
+          CAPITAL_ENV: demo
+          CAPITAL_ALLOW_LIVE: '0'
+        run: python bot_nl25.py

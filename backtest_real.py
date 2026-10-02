@@ -226,9 +226,12 @@ def _import_bollinger():
     return bg
 
 
-def simulate_bollinger(O, H, L, C, T, bg, trail_mult):
+def simulate_bollinger(O, H, L, C, T, bg, trail_mult, gaps=False, bar_min=15):
     """Bollinger reversion: entra por signal_last (BB+RSI+filtro ADX/EMA200), UNICA salida
-    trailing = trail_mult x ATR (sin TP, como en vivo). Sin look-ahead."""
+    trailing = trail_mult x ATR (sin TP, como en vivo). Sin look-ahead.
+    gaps=True (instrumentos con cierre de sesion, ej. NL25): el stop se ejecuta en la APERTURA si
+    la vela abre mas alla del stop, y no se entra si la vela siguiente no es contigua (mercado
+    cerrado: la orden limite de 15 min expira) -> igual que las guardas de sesion del bot."""
     n = len(C)
     trades = []
     pos = None
@@ -237,6 +240,8 @@ def simulate_bollinger(O, H, L, C, T, bg, trail_mult):
         if pos is None:
             sig = bg.signal_last(O[lo:t+1], H[lo:t+1], L[lo:t+1], C[lo:t+1])
             if sig["side"] and sig["atr"]:
+                if gaps and (t + 1 >= n or (T[t+1] - T[t]).total_seconds() > bar_min * 90):
+                    continue
                 d = trail_mult * sig["atr"]
                 if sig["side"] == "BUY":
                     pos = {"side": "long", "entry": C[t], "dist": d,
@@ -247,9 +252,9 @@ def simulate_bollinger(O, H, L, C, T, bg, trail_mult):
         else:
             side = pos["side"]; exit_px = None
             if side == "long" and L[t] <= pos["stop"]:
-                exit_px = pos["stop"]
+                exit_px = min(pos["stop"], O[t]) if gaps else pos["stop"]
             elif side == "short" and H[t] >= pos["stop"]:
-                exit_px = pos["stop"]
+                exit_px = max(pos["stop"], O[t]) if gaps else pos["stop"]
             if exit_px is not None:
                 gross = (exit_px - pos["entry"]) if side == "long" else (pos["entry"] - exit_px)
                 trades.append({"side": side, "entry": pos["entry"], "exit": exit_px,
@@ -519,7 +524,55 @@ def run_us30(sweep=False):
     SPREAD = old
 
 
+def _run_indice(mod, epic, half_spread, titulo, grid, gaps=False, moneda="$"):
+    """Corrida generica para los bots de indices con motor BB+RSI (signal_last del propio bot).
+    Solo datos REALES de capital.com (15m). gaps=True usa el simulador realista de sesiones."""
+    src, days = _source()
+    O, H, L, C, T = fetch_capital(epic, "MINUTE_15", days if src == "capital" else 300)
+    weeks = (T[-1] - T[WIN_BOLL]).days / 7
+    print("=" * 78)
+    print(f"BACKTEST REAL — bot {titulo} (mismo codigo que corre en vivo)")
+    print(f"  BB{mod.BB_LEN}/{mod.BB_MULT} RSI {mod.RSI_LOW}/{mod.RSI_HIGH} sin filtro, 2 lados | trailing {mod.TRAIL_ATR}xATR | size {mod.SIZE}")
+    print(f"Datos: capital.com {epic} 15m REAL | {len(C)} velas | {T[WIN_BOLL]:%Y-%m-%d} -> {T[-1]:%Y-%m-%d} | {weeks:.0f} sem")
+    print(f"Neto = con spread {half_spread}x2 pts/trade." + (" Simulador REALISTA de saltos de sesion." if gaps else ""))
+    print("=" * 78)
+    global SPREAD
+    old = SPREAD; SPREAD = half_spread
+    print(f"{'TRAIL':>6} | {'tr/sem':>6} | {'#tr':>4} | {'NETO':>8} | {'PF':>4} | {'acc%':>5} | {'maxDD':>7} | {'3 tercios':>23} | ROB")
+    print("-" * 78)
+    for m in grid:
+        tr = simulate_bollinger(O, H, L, C, T, mod, m, gaps=gaps)
+        if not tr:
+            print(f"{m:>5}x |  sin trades"); continue
+        tot, wr, pf, mdd, terc, rob = stats(tr, "net")
+        star = "  <<" if rob == 3 else ""
+        print(f"{m:>5}x | {len(tr)/weeks:>6.1f} | {len(tr):>4} | {tot:>+8.1f} | {pf:>4.2f} | {wr:>4.1f}% | "
+              f"{mdd:>+7.1f} | {terc[0]:>+7.1f}/{terc[1]:>+7.1f}/{terc[2]:>+7.1f} | ROB{rob}{star}")
+        if len(grid) == 1:
+            print(f"  ~{moneda}{tot*mod.SIZE:+.0f} con size {mod.SIZE} (~{moneda}{tot*mod.SIZE/weeks:+.1f}/sem) | "
+                  f"media/trade {tot/len(tr):+.2f} pts | maxDD ~{moneda}{abs(mdd)*mod.SIZE:.0f}")
+    SPREAD = old
+
+
+def run_rty(sweep=False):
+    """RTY (Russell 2000) reversion BB+RSI 2 lados 15m: motor de bot_us30/bot_sp500. Spread 0.5."""
+    import bot_rty as rt
+    _run_indice(rt, "RTY", 0.25, "RTY (Russell 2000)", (3.0, 4.0, 5.0, 6.0) if sweep else (rt.TRAIL_ATR,))
+
+
+def run_nl25(sweep=False):
+    """NL25 (Holanda 25) reversion BB+RSI 2 lados 15m, sesion 06-20 UTC -> simulador con gaps.
+    Spread 0.10 (medido fijo durante toda la sesion). P&L en EUR."""
+    import bot_nl25 as nl
+    _run_indice(nl, "NL25", 0.05, "NL25 (Holanda 25)", (2.0, 3.0, 4.0, 5.0) if sweep else (nl.TRAIL_ATR,),
+                gaps=True, moneda="EUR ")
+
+
 def main():
+    if "--rty" in sys.argv:
+        run_rty(sweep="--sweep" in sys.argv); return
+    if "--nl25" in sys.argv:
+        run_nl25(sweep="--sweep" in sys.argv); return
     if "--us30" in sys.argv:
         run_us30(sweep="--sweep" in sys.argv); return
     if "--sp500" in sys.argv:
