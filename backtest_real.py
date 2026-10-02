@@ -26,7 +26,7 @@ import urllib.request
 from datetime import datetime, timezone, timedelta
 import bot_gold_trend as bt      # <-- codigo REAL del bot en vivo (signal_at, params)
 
-WIN     = 200      # velas que ve el bot en vivo (capital.com max=200)
+WIN     = getattr(bt, "N_CANDLES", 200)   # velas que ve el bot TREND en vivo (600 desde 2-oct: EMA200)
 SPREAD  = 0.3      # medio-spread por lado en puntos (aprox capital.com GOLD)
 # DESLIZ DE EJECUCION (21-sep): medido comparando el cierre de la vela de senal contra el precio
 # real de entrada de los bots en vivo. Las entradas A MERCADO llegan ~1 min tarde y pagan un coste
@@ -159,6 +159,7 @@ def simulate(O, H, L, C, T, stop_mult):
     n = len(C)
     trades = []
     pos = None
+    pyr_step = getattr(bt, "PYR_STEP", 0); pyr_max = getattr(bt, "PYR_MAX", 1)
     for t in range(WIN, n):
         lo = t - WIN + 1
         sig = bt.signal_at(O[lo:t+1], H[lo:t+1], L[lo:t+1], C[lo:t+1], WIN - 1)
@@ -175,10 +176,13 @@ def simulate(O, H, L, C, T, stop_mult):
             elif side == "short" and sig["exit_short"]:
                 exit_px, reason = C[t], "donchian"
             if exit_px is not None:
-                gross = (exit_px - pos["entry"]) if side == "long" else (pos["entry"] - exit_px)
+                # con piramide el trade suma todas sus unidades (cada una paga su spread/desliz)
+                sgn = 1 if side == "long" else -1
+                gross = sum(sgn * (exit_px - e) for e in pos["entries"])
                 trades.append({"side": side, "entry": pos["entry"], "exit": exit_px,
                                "t_in": pos["t_in"], "t_out": T[t], "gross": gross,
-                               "net": gross - 2 * SPREAD - SLIP, "reason": reason})
+                               "net": gross - (2 * SPREAD + SLIP) * len(pos["entries"]),
+                               "reason": reason, "units": len(pos["entries"])})
                 pos = None; exited = True
             else:
                 if side == "long":
@@ -187,14 +191,19 @@ def simulate(O, H, L, C, T, stop_mult):
                 else:
                     pos["extreme"] = min(pos["extreme"], L[t])
                     pos["stop"] = min(pos["stop"], pos["extreme"] + pos["dist"])
+                # PIRAMIDE (igual que el bot): al CIERRE 1h, si supero entrada +/- PYR_STEP x ATR(entrada)
+                if pyr_max > 1 and len(pos["entries"]) < pyr_max:
+                    lvl = pos["entries"][-1] + (1 if side == "long" else -1) * pyr_step * pos["atr"]
+                    if (side == "long" and C[t] >= lvl) or (side == "short" and C[t] <= lvl):
+                        pos["entries"].append(C[t])
         if pos is None and not exited:
             if sig["long_break"]:
                 d = stop_mult * sig["atr"]
-                pos = {"side": "long", "entry": C[t], "dist": d,
+                pos = {"side": "long", "entry": C[t], "dist": d, "atr": sig["atr"], "entries": [C[t]],
                        "stop": C[t] - d, "extreme": C[t], "t_in": T[t]}
             elif sig["short_break"]:
                 d = stop_mult * sig["atr"]
-                pos = {"side": "short", "entry": C[t], "dist": d,
+                pos = {"side": "short", "entry": C[t], "dist": d, "atr": sig["atr"], "entries": [C[t]],
                        "stop": C[t] + d, "extreme": C[t], "t_in": T[t]}
     return trades
 
