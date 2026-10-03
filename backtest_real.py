@@ -584,6 +584,35 @@ def run_us100(sweep=False):
     _run_indice(nq, "US100", 0.9, "US100 (Nasdaq)", (3.0, 4.0, 5.0, 6.0) if sweep else (nq.TRAIL_ATR,))
 
 
+def run_us30rf(sweep=False):
+    """US30 RUPTURA FALLIDA (1h): senal = bot_us30_rf.signal_last (funcion real), salida trailing
+    desde la entrada (simulate_bollinger), spread 1.0/lado. Modelo 1h medio; la validacion que manda
+    es la FIEL 1m (rf_nativo.py)."""
+    import bot_us30_rf as rf
+    src, days = _source()
+    O, H, L, C, T = fetch_capital("US30", "HOUR", days if src == "capital" else 600)
+    weeks = (T[-1] - T[WIN_BOLL]).days / 7
+    print("=" * 78)
+    print("BACKTEST REAL — bot US30 RUPTURA FALLIDA 1h (mismo codigo que corre en vivo)")
+    print(f"  ruptura max/min {rf.ENT}h, fallo en <= {rf.CONF} velas | trailing {rf.TRAIL_ATR}xATR | size {rf.SIZE}")
+    print(f"Datos: capital.com US30 1h REAL | {len(C)} velas | {T[WIN_BOLL]:%Y-%m-%d} -> {T[-1]:%Y-%m-%d} | {weeks:.0f} sem | spread 1.0x2")
+    print("=" * 78)
+    global SPREAD
+    old = SPREAD; SPREAD = 1.0
+    grid = (2.0, 2.5, 3.0, 4.0) if sweep else (rf.TRAIL_ATR,)
+    print(f"{'TRAIL':>6} | {'tr/sem':>6} | {'#tr':>4} | {'NETO':>8} | {'PF':>4} | {'acc%':>5} | {'maxDD':>7} | {'3 tercios':>23} | ROB")
+    for m in grid:
+        tr = simulate_bollinger(O, H, L, C, T, rf, m)
+        if not tr:
+            print(f"{m:>5}x |  sin trades"); continue
+        tot, wr, pf, mdd, terc, rob = stats(tr, "net")
+        print(f"{m:>5}x | {len(tr)/weeks:>6.1f} | {len(tr):>4} | {tot:>+8.0f} | {pf:>4.2f} | {wr:>4.1f}% | {mdd:>+7.0f} | "
+              f"{terc[0]:>+7.0f}/{terc[1]:>+7.0f}/{terc[2]:>+7.0f} | ROB{rob}{'  <<' if rob == 3 else ''}")
+        if len(grid) == 1:
+            print(f"  ~${tot*rf.SIZE:+.0f} con size {rf.SIZE} (~${tot*rf.SIZE/weeks:+.1f}/sem) | maxDD ~${abs(mdd)*rf.SIZE:.0f}")
+    SPREAD = old
+
+
 def run_nl25(sweep=False):
     """NL25 (Holanda 25) reversion BB+RSI 2 lados 15m, sesion 06-20 UTC -> simulador con gaps.
     Spread 0.10 (medido fijo durante toda la sesion). P&L en EUR."""
@@ -595,6 +624,8 @@ def run_nl25(sweep=False):
 def main():
     if "--rty" in sys.argv:
         run_rty(sweep="--sweep" in sys.argv); return
+    if "--us30rf" in sys.argv:
+        run_us30rf(sweep="--sweep" in sys.argv); return
     if "--us100" in sys.argv:
         run_us100(sweep="--sweep" in sys.argv); return
     if "--nl25" in sys.argv:

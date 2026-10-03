@@ -1,0 +1,25 @@
+name: Bot US30 Ruptura Fallida 1h (demo)
+# 9o bot (3-oct-2026): ruptura fallida del max/min de 48h en US30, velas 1h, trailing 3xATR, size 0.12.
+# Gatillo UNICO: cron-job.org via workflow_dispatch, crontab '1 * * * *' (UTC), 1 min tras el cierre 1h.
+# Sin 'schedule' de GitHub (evita doble disparo / entradas duplicadas), igual que los otros bots.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - name: Ejecutar bot US30 ruptura fallida (1h)
+        env:
+          CAPITAL_API_KEY:      ${{ secrets.CAPITAL_API_KEY }}
+          CAPITAL_IDENTIFIER:   ${{ secrets.CAPITAL_IDENTIFIER }}
+          CAPITAL_API_PASSWORD: ${{ secrets.CAPITAL_API_PASSWORD }}
+          CAPITAL_ENV: demo
+          CAPITAL_ALLOW_LIVE: '0'
+        run: python bot_us30_rf.py

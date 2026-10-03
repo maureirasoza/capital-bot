@@ -64,6 +64,8 @@ def bot_de(epic, size):
             return 'COBRE trend (100)'
         return f'COBRE pruebas/historico (size {size})'
     if epic == 'US30':
+        if size is not None and abs(size - 0.12) < 0.005:
+            return 'US30 ruptura fallida 1h (0.12)'
         if size is not None and abs(size - 0.1) < 0.01:
             return 'US30 Bollinger-RSI 15m (0.1)'
         return f'US30 pruebas/historico (size {size})'
