@@ -13,7 +13,7 @@ def agg(d,mins):
     """agrega velas de 15m a 'mins' minutos (alineadas a la hora UTC)"""
     keys=("Ob","Hb","Lb","Cb","Oa","Ha","La","Ca"); out={k:[] for k in keys}; out["T"]=[]; cur=None
     for i,t in enumerate(d["T"]):
-        b=t.replace(minute=(t.minute//mins)*mins)
+        b=t.replace(minute=(t.minute//mins)*mins) if mins<60 else t.replace(minute=0,hour=(t.hour//(mins//60))*(mins//60))   # bug 2-oct: antes 240 -> velas de 1h
         if b!=cur:
             cur=b; out["T"].append(b)
             for k in keys: out[k].append(d[k][i])

@@ -577,6 +577,13 @@ def run_rty(sweep=False):
     _run_indice(rt, "RTY", 0.25, "RTY (Russell 2000)", (3.0, 4.0, 5.0, 6.0) if sweep else (rt.TRAIL_ATR,))
 
 
+def run_us100(sweep=False):
+    """US100 (Nasdaq) reversion BB+RSI 2 lados 15m: motor de bot_us30. Spread ~1.9 (0.9/lado).
+    OJO: la validacion que manda es la FIEL 1m (us100_fiel.py); este modelo 15m es optimista."""
+    import bot_us100 as nq
+    _run_indice(nq, "US100", 0.9, "US100 (Nasdaq)", (3.0, 4.0, 5.0, 6.0) if sweep else (nq.TRAIL_ATR,))
+
+
 def run_nl25(sweep=False):
     """NL25 (Holanda 25) reversion BB+RSI 2 lados 15m, sesion 06-20 UTC -> simulador con gaps.
     Spread 0.10 (medido fijo durante toda la sesion). P&L en EUR."""
@@ -588,6 +595,8 @@ def run_nl25(sweep=False):
 def main():
     if "--rty" in sys.argv:
         run_rty(sweep="--sweep" in sys.argv); return
+    if "--us100" in sys.argv:
+        run_us100(sweep="--sweep" in sys.argv); return
     if "--nl25" in sys.argv:
         run_nl25(sweep="--sweep" in sys.argv); return
     if "--us30" in sys.argv:
