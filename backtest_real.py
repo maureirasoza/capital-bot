@@ -244,6 +244,7 @@ def simulate_bollinger(O, H, L, C, T, bg, trail_mult, gaps=False, bar_min=15):
     n = len(C)
     trades = []
     pos = None
+    pyr_step = getattr(bg, "PYR_STEP", 0); pyr_max = getattr(bg, "PYR_MAX", 1)   # piramide (solo bot_gold)
     for t in range(WIN_BOLL, n):
         lo = t - WIN_BOLL + 1
         if pos is None:
@@ -253,10 +254,10 @@ def simulate_bollinger(O, H, L, C, T, bg, trail_mult, gaps=False, bar_min=15):
                     continue
                 d = trail_mult * sig["atr"]
                 if sig["side"] == "BUY":
-                    pos = {"side": "long", "entry": C[t], "dist": d,
+                    pos = {"side": "long", "entry": C[t], "dist": d, "atr": sig["atr"], "entries": [C[t]],
                            "stop": C[t] - d, "extreme": C[t], "t_in": T[t]}
                 else:
-                    pos = {"side": "short", "entry": C[t], "dist": d,
+                    pos = {"side": "short", "entry": C[t], "dist": d, "atr": sig["atr"], "entries": [C[t]],
                            "stop": C[t] + d, "extreme": C[t], "t_in": T[t]}
         else:
             side = pos["side"]; exit_px = None
@@ -265,10 +266,12 @@ def simulate_bollinger(O, H, L, C, T, bg, trail_mult, gaps=False, bar_min=15):
             elif side == "short" and H[t] >= pos["stop"]:
                 exit_px = max(pos["stop"], O[t]) if gaps else pos["stop"]
             if exit_px is not None:
-                gross = (exit_px - pos["entry"]) if side == "long" else (pos["entry"] - exit_px)
+                sgn = 1 if side == "long" else -1
+                gross = sum(sgn * (exit_px - e) for e in pos["entries"])     # suma de unidades
                 trades.append({"side": side, "entry": pos["entry"], "exit": exit_px,
                                "t_in": pos["t_in"], "t_out": T[t], "gross": gross,
-                               "net": gross - 2 * SPREAD - SLIP})
+                               "net": gross - (2 * SPREAD + SLIP) * len(pos["entries"]),
+                               "units": len(pos["entries"])})
                 pos = None
             else:
                 if side == "long":
@@ -277,6 +280,11 @@ def simulate_bollinger(O, H, L, C, T, bg, trail_mult, gaps=False, bar_min=15):
                 else:
                     pos["extreme"] = min(pos["extreme"], L[t])
                     pos["stop"] = min(pos["stop"], pos["extreme"] + pos["dist"])
+                # PIRAMIDE (igual que el bot): al CIERRE, si supero entrada +/- PYR_STEP x ATR(entrada)
+                if pyr_max > 1 and len(pos["entries"]) < pyr_max:
+                    lvl = pos["entries"][-1] + (1 if side == "long" else -1) * pyr_step * pos["atr"]
+                    if (side == "long" and C[t] >= lvl) or (side == "short" and C[t] <= lvl):
+                        pos["entries"].append(C[t])
     return trades
 
 
