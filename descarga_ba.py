@@ -4,7 +4,7 @@ import os, sys, json, time
 from datetime import datetime, timedelta, timezone
 import capital_client as cc, backtest_real as br
 EPIC,RES,DAYS=sys.argv[1],sys.argv[2],int(sys.argv[3])
-step={"MINUTE":timedelta(hours=16),"MINUTE_5":timedelta(days=3),"MINUTE_15":timedelta(days=10),"HOUR":timedelta(days=40)}[RES]
+step={"MINUTE":timedelta(hours=16),"MINUTE_5":timedelta(days=3),"MINUTE_15":timedelta(days=10),"HOUR":timedelta(days=40),"HOUR_4":timedelta(days=160),"DAY":timedelta(days=900)}[RES]
 path=os.path.join(br.DATA_DIR,f"capital_{EPIC}_{RES}_{DAYS}d_bidask.json"); part=path+".parcial"
 if os.path.exists(path): print("ya existe",path); sys.exit()
 def login_robusto():

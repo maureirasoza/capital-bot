@@ -40,6 +40,8 @@ txs = cc.get(h, f'/api/v1/history/transactions?from={frm}').json().get('transact
 
 def bot_de(epic, size):
     if epic == 'BTCUSD':
+        if size is not None and (abs(size - 0.013) < 1e-6 or abs(size - 0.0131) < 1e-6):
+            return 'CRIPTO ATR-breakout BTC 4h (0.013)'
         if size is not None and abs(size - 0.05) < 0.005:
             return 'BTC Bollinger (0.05)'
         return f'BTC pruebas/historico (size {size})'
@@ -69,6 +71,10 @@ def bot_de(epic, size):
         if size is not None and abs(size - 0.1) < 0.01:
             return 'US30 Bollinger-RSI 15m (0.1)'
         return f'US30 pruebas/historico (size {size})'
+    if epic == 'ETHUSD':
+        if size is not None and (abs(size - 0.41) < 1e-6 or abs(size - 0.411) < 1e-6):
+            return 'CRIPTO ATR-breakout ETH 4h (0.41)'
+        return f'ETH pruebas/historico (size {size})'
     if epic == 'US100':
         if size is not None and abs(size - 0.1) < 0.01:
             return 'US100 Nasdaq Bollinger-RSI 15m (0.1)'

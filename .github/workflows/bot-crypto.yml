@@ -1,0 +1,25 @@
+name: Bot CRIPTO ATR-breakout BTC+ETH 4h (demo)
+# 10o bot (3-oct-2026): estallido de volatilidad 4h en BTC y ETH (24/7), filtro EMA200, trailing 2xATR, piramide.
+# Gatillo UNICO: cron-job.org via workflow_dispatch, crontab '1 * * * *' (cada hora; el bot opera solo 1 vez por vela 4h).
+# Sin 'schedule' de GitHub (evita doble disparo / entradas duplicadas), igual que los otros bots.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - name: Ejecutar bot cripto ATR-breakout (BTC+ETH, 4h)
+        env:
+          CAPITAL_API_KEY:      ${{ secrets.CAPITAL_API_KEY }}
+          CAPITAL_IDENTIFIER:   ${{ secrets.CAPITAL_IDENTIFIER }}
+          CAPITAL_API_PASSWORD: ${{ secrets.CAPITAL_API_PASSWORD }}
+          CAPITAL_ENV: demo
+          CAPITAL_ALLOW_LIVE: '0'
+        run: python bot_crypto.py
