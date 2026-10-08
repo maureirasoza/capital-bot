@@ -40,6 +40,11 @@ RSI_HIGH  = 65
 ATR_LEN   = 14
 TRAIL_ATR = 4.0            # fila BB20/2.0 RSI35/65 ROB3 en 3-6x; 4.0 = mejor neto/PF
 BAR_MIN   = 15
+RESOLUTION = "MINUTE_15"
+TIGHT_AT  = 14.0           # 8-oct-2026: cuando la ganancia maxima llega a TIGHT_AT x ATR(entrada), el trailing
+TIGHT_K   = 2.0            # pasa de 4.0 a TIGHT_K x ATR. rty_prog_zoom.py 300d: +896 -> +1074 (+20%), 6/6 tramos;
+                           # meseta 12-15 x 1.5-3.5 (21/35 celdas mejoran en ambas mitades).
+TIGHT_LOOKBACK_D = 6       # dias de velas para recalcular el ATR de la vela de senal
 
 
 def _mid(x):
@@ -142,7 +147,7 @@ def get_position(h):
         if p["market"]["epic"] == EPIC and _mysize(p["position"]["size"]):
             pp = p["position"]
             return (pp["dealId"], pp.get("direction"), pp.get("level"), pp.get("stopLevel"),
-                    bool(pp.get("trailingStop")))
+                    bool(pp.get("trailingStop")), pp.get("trailingStopDistance"), pp.get("createdDateUTC"))
     return None
 
 
@@ -179,6 +184,60 @@ def acted_this_bar(h, bar0):
     return False
 
 
+def atr_vela_senal(h, created_utc):
+    """ATR de la vela de senal de la posicion (la vela anterior a su apertura), recalculado desde las velas
+    cerradas hasta ella. Solo sirve para saber si el trailing ya se apreto (los dos estados difieren x2)."""
+    try:
+        t_open = datetime.fromisoformat(str(created_utc)[:19])
+    except ValueError:
+        return None
+    m = t_open.hour * 60 + t_open.minute
+    sigbar = t_open.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(minutes=(m // BAR_MIN - 1) * BAR_MIN)
+    frm = (sigbar - timedelta(days=TIGHT_LOOKBACK_D)).strftime("%Y-%m-%dT%H:%M:%S")
+    to = (sigbar + timedelta(minutes=BAR_MIN)).strftime("%Y-%m-%dT%H:%M:%S")
+    r = cc.get(h, f"/api/v1/prices/{EPIC}?resolution={RESOLUTION}&from={frm}&to={to}&max=1000")
+    if r.status_code != 200:
+        return None
+    H, L, C, TT = [], [], [], []
+    for p in r.json().get("prices", []):
+        t = (p.get("snapshotTimeUTC") or p.get("snapshotTime") or "").replace("Z", "")
+        try:
+            bt = datetime.fromisoformat(t)
+        except ValueError:
+            continue
+        TT.append(bt); H.append(_mid(p["highPrice"])); L.append(_mid(p["lowPrice"])); C.append(_mid(p["closePrice"]))
+    if sigbar not in TT:
+        return None
+    return atr_series(H, L, C, ATR_LEN)[TT.index(sigbar)]
+
+
+def tighten_if_big_gain(h, deal_id, direction, level, cur_stop, dist, created, dry):
+    """APRETAR TRAS GANANCIA (8-oct-2026): si la ganancia maxima >= TIGHT_AT x ATR(entrada), el trailing nativo
+    pasa de TRAIL_ATR a TIGHT_K x ATR(entrada) (PUT /positions: capital.com lo re-ancla desde el mejor precio).
+    Sin estado: distancia original = TRAIL_ATR x ATR(entrada); extremo = stopLevel +/- distancia;
+    'ya apretado' si la distancia es claramente menor que TRAIL_ATR x ATR(vela de senal)."""
+    if not dist or cur_stop is None or level is None:
+        return
+    dist = float(dist)
+    atr_c = atr_vela_senal(h, created)
+    if not atr_c:
+        print("  Apretar tras ganancia: no encuentro la vela de senal -> no evaluo."); return
+    if dist < 0.75 * TRAIL_ATR * atr_c:
+        print(f"  Trailing ya apretado ({dist:.1f} = {dist/atr_c:.1f}xATR)."); return
+    atr_e = dist / TRAIL_ATR
+    sg = 1 if direction == "BUY" else -1
+    mfe = sg * ((float(cur_stop) + sg * dist) - float(level))
+    print(f"  Ganancia maxima: {mfe:+.1f} pts = {mfe/atr_e:+.1f}xATR (aprieta al llegar a +{TIGHT_AT}xATR)")
+    if mfe < TIGHT_AT * atr_e:
+        return
+    nueva = round(TIGHT_K * atr_e, 1)
+    if dry:
+        print(f"  [dry] apretaria el trailing {dist} -> {nueva} ({TIGHT_K}xATR)"); return
+    r = cc.requests.put(f"{cc.BASE}/api/v1/positions/{deal_id}", headers=h,
+                        json={"trailingStop": True, "stopDistance": nueva}, timeout=30)
+    print(f"  >> GANANCIA GRANDE: trailing {dist} -> {nueva} ({TIGHT_K}xATR) -> {r.status_code} {r.text[:80]}")
+
+
 def manual_trail(h, deal_id, direction, cur_stop, atr, dry):
     """FALLBACK si el trailing nativo no esta activo: sube el stop a (precio -/+ TRAIL_ATR x ATR)."""
     snap = cc.get(h, f"/api/v1/markets/{EPIC}").json().get("snapshot", {})
@@ -207,10 +266,11 @@ def main():
     print(f"[RTY 15m] close={sig['close']} banda[{sig['lower']}..{sig['upper']}] RSI={sig['rsi']} ATR={sig['atr']}")
     pos = get_position(h)
     if pos:
-        deal_id, direction, level, cur_stop, nativo = pos
+        deal_id, direction, level, cur_stop, nativo, dist, created = pos
         print(f"  Posicion ABIERTA {direction} dealId={deal_id} entrada={level} stop={cur_stop} trailing_nativo={nativo}")
         if nativo:
-            print("  Stop TRAILING NATIVO (capital.com lo mueve en tiempo real). Nada que hacer.")
+            print(f"  Stop TRAILING NATIVO (capital.com lo mueve en tiempo real), distancia {dist}.")
+            tighten_if_big_gain(h, deal_id, direction, level, cur_stop, dist, created, dry or status)
         else:
             manual_trail(h, deal_id, direction, cur_stop, sig["atr"], dry or status)
         return

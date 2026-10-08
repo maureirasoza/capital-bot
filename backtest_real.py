@@ -254,6 +254,7 @@ def simulate_bollinger(O, H, L, C, T, bg, trail_mult, gaps=False, bar_min=15):
     trades = []
     pos = None
     pyr_step = getattr(bg, "PYR_STEP", 0); pyr_max = getattr(bg, "PYR_MAX", 1)   # piramide (solo bot_gold)
+    tight_at = getattr(bg, "TIGHT_AT", 0); tight_k = getattr(bg, "TIGHT_K", 0)  # apretar tras ganancia (RTY/US30 RF)
     for t in range(WIN_BOLL, n):
         lo = t - WIN_BOLL + 1
         if pos is None:
@@ -289,6 +290,14 @@ def simulate_bollinger(O, H, L, C, T, bg, trail_mult, gaps=False, bar_min=15):
                 else:
                     pos["extreme"] = min(pos["extreme"], L[t])
                     pos["stop"] = min(pos["stop"], pos["extreme"] + pos["dist"])
+                # APRETAR TRAS GANANCIA (igual que el bot): al CIERRE, si la ganancia maxima >= TIGHT_AT x ATR(entrada),
+                # el trailing pasa a TIGHT_K x ATR(entrada) re-anclado desde el extremo (capital.com hace lo mismo).
+                if tight_at and not pos.get("tight"):
+                    sgn = 1 if side == "long" else -1
+                    if sgn * (pos["extreme"] - pos["entry"]) >= tight_at * pos["atr"]:
+                        pos["dist"] = tight_k * pos["atr"]; pos["tight"] = True
+                        if side == "long": pos["stop"] = max(pos["stop"], pos["extreme"] - pos["dist"])
+                        else: pos["stop"] = min(pos["stop"], pos["extreme"] + pos["dist"])
                 # PIRAMIDE (igual que el bot): al CIERRE, si supero entrada +/- PYR_STEP x ATR(entrada)
                 if pyr_max > 1 and len(pos["entries"]) < pyr_max:
                     lvl = pos["entries"][-1] + (1 if side == "long" else -1) * pyr_step * pos["atr"]
