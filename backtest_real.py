@@ -160,6 +160,7 @@ def simulate(O, H, L, C, T, stop_mult):
     trades = []
     pos = None
     pyr_step = getattr(bt, "PYR_STEP", 0); pyr_max = getattr(bt, "PYR_MAX", 1)
+    tight_at = getattr(bt, "TIGHT_AT", 0); tight_k = getattr(bt, "TIGHT_K", 0)
     for t in range(WIN, n):
         lo = t - WIN + 1
         sig = bt.signal_at(O[lo:t+1], H[lo:t+1], L[lo:t+1], C[lo:t+1], WIN - 1)
@@ -191,6 +192,14 @@ def simulate(O, H, L, C, T, stop_mult):
                 else:
                     pos["extreme"] = min(pos["extreme"], L[t])
                     pos["stop"] = min(pos["stop"], pos["extreme"] + pos["dist"])
+                # AJUSTE POR GANANCIA GRANDE (igual que el bot, al cierre 1h): tras TIGHT_AT x ATR de ganancia
+                # maxima, el trailing pasa a TIGHT_K x ATR (capital.com re-ancla desde el extremo).
+                if tight_at and not pos.get("tight"):
+                    sg_ = 1 if side == "long" else -1
+                    if sg_ * (pos["extreme"] - pos["entry"]) >= tight_at * pos["atr"]:
+                        pos["dist"] = tight_k * pos["atr"]; pos["tight"] = True
+                        pos["stop"] = (max(pos["stop"], pos["extreme"] - pos["dist"]) if side == "long"
+                                       else min(pos["stop"], pos["extreme"] + pos["dist"]))
                 # PIRAMIDE (igual que el bot): al CIERRE 1h, si supero entrada +/- PYR_STEP x ATR(entrada)
                 if pyr_max > 1 and len(pos["entries"]) < pyr_max:
                     lvl = pos["entries"][-1] + (1 if side == "long" else -1) * pyr_step * pos["atr"]

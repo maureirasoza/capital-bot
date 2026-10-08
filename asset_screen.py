@@ -11,7 +11,7 @@ Criterio: ROB3 + meseta; flag * si >=3 trades/sem.
 import sys, time
 import backtest_real as br
 import bot_gold_trend as bt
-bt.EMA_TREND = 0; bt.PYR_MAX = 1   # screening generico: Donchian puro, sin el filtro EMA ni la piramide del bot de oro
+bt.EMA_TREND = 0; bt.PYR_MAX = 1; bt.TIGHT_AT = 0   # screening generico: Donchian puro, sin el filtro EMA ni la piramide del bot de oro
 
 EPIC = sys.argv[1]; RES = sys.argv[2]; DAYS = int(sys.argv[3]); SPREAD = float(sys.argv[4])
 WIN = 300

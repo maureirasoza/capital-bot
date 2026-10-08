@@ -4,7 +4,7 @@ sobre BTCUSD HOUR 600d real congelado. Mismos motores reales (bot_gold.signal_la
 import sys, time
 import backtest_real as br
 import bot_gold_trend as bt
-bt.EMA_TREND = 0; bt.PYR_MAX = 1   # screening generico: Donchian puro, sin el filtro EMA ni la piramide del bot de oro
+bt.EMA_TREND = 0; bt.PYR_MAX = 1; bt.TIGHT_AT = 0   # screening generico: Donchian puro, sin el filtro EMA ni la piramide del bot de oro
 SPREAD = 25.0; WIN = 300
 bg = br._import_bollinger()
 O, H, L, C, T = br.fetch_capital("BTCUSD", "HOUR", 600)

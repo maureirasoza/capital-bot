@@ -59,6 +59,12 @@ EMA_TREND = 200          # filtro de tendencia: EMA de 200 velas 1h (0 = sin fil
 N_CANDLES = 600          # velas que baja el bot (y ventana del backtest): la EMA200 necesita historia
 PYR_STEP = 2.0           # piramide: agregar cuando el cierre 1h supera entrada + PYR_STEP x ATR(entrada)
 PYR_MAX  = 2             # unidades maximas por operacion (1 = sin piramide). El codigo soporta 1 o 2.
+TIGHT_AT = 9.0           # 8-oct-2026: cuando la ganancia maxima de la base llega a TIGHT_AT x ATR(entrada),
+TIGHT_K  = 2.5           # el trailing de AMBAS unidades se aprieta de ATR_STOP a TIGHT_K x ATR(entrada).
+                         # Validado (trend_salidas*.py, GOLD 1h 1000d): +$2262 PF1.63 -> +$2710 PF1.74 (+20%), DD
+                         # -312 -> -296, mejora 5/6 tramos; meseta umbral 8-10 x apretar a 2-3 (todo mejora).
+                         # capital.com acepta cambiar stopDistance de un trailing abierto (PUT /positions) y
+                         # re-ancla el stop desde el mejor precio de la posicion (probado en demo).
 SIZE_PYR = round(SIZE + 0.01, 2)   # la unidad piramidada usa un tamano 0.01 mayor SOLO para poder
                          # distinguirla sin guardar estado: si la base ya salio por su stop y queda
                          # la piramidada sola, el bot NO vuelve a piramidar. El tracker las suma igual.
@@ -105,7 +111,7 @@ def fetch_closed(h):
     if r.status_code != 200:
         sys.exit(f"No se pudo bajar precios ({r.status_code}): {r.text}")
     bar0 = current_bar_start()
-    O, H, L, C = [], [], [], []
+    O, H, L, C, TT = [], [], [], [], []
     for p in r.json().get("prices", []):
         t = (p.get("snapshotTimeUTC") or p.get("snapshotTime") or "").replace("Z", "")
         try:
@@ -115,8 +121,66 @@ def fetch_closed(h):
         if bt >= bar0:              # vela en curso -> fuera
             continue
         O.append(_mid(p["openPrice"])); H.append(_mid(p["highPrice"]))
-        L.append(_mid(p["lowPrice"]));  C.append(_mid(p["closePrice"]))
+        L.append(_mid(p["lowPrice"]));  C.append(_mid(p["closePrice"])); TT.append(bt)
+    global _CANDLES
+    _CANDLES = (O, H, L, C, TT)
     return O, H, L, C
+
+
+_CANDLES = None
+
+
+def atr_at_entry(created_utc):
+    """ATR de la vela de senal de una posicion (la vela 1h anterior a su apertura), desde las velas ya bajadas."""
+    if not _CANDLES or not created_utc:
+        return None
+    O, H, L, C, TT = _CANDLES
+    try:
+        t_open = datetime.fromisoformat(str(created_utc)[:19])
+    except ValueError:
+        return None
+    sigbar = t_open.replace(minute=0, second=0, microsecond=0) - timedelta(hours=1)
+    if sigbar not in TT:
+        return None
+    return atr_series(H, L, C, ATR_LEN)[TT.index(sigbar)]
+
+
+def atr_entrada(b):
+    """ATR de la entrada de la base: distancia/ATR_STOP si el trailing sigue original; si ya se apreto, el ATR
+    de la vela de entrada recalculado desde las velas (la distancia ya no lo refleja)."""
+    dist = float(b["dist"]); atr_c = atr_at_entry(b.get("created"))
+    if atr_c and dist < 0.75 * ATR_STOP * atr_c:
+        return atr_c
+    return dist / ATR_STOP
+
+
+def tighten_if_big_gain(h, poss, is_long, dry):
+    """Si la ganancia maxima de la base >= TIGHT_AT x ATR(entrada), aprieta el trailing de todas las unidades a
+    TIGHT_K x ATR(entrada). Sin estado: extremo = stopLevel +/- distancia; 'ya apretado' si la distancia de la base
+    es claramente menor que ATR_STOP x ATR(entrada)."""
+    base = [p for p in poss if p["base"]]
+    if not base or not base[0]["dist"] or base[0]["stop"] is None:
+        return
+    b = base[0]; dist = float(b["dist"])
+    atr_c = atr_at_entry(b["created"])
+    if atr_c is None:
+        print("  Ajuste por ganancia grande: no encuentro la vela de entrada -> no evaluo."); return
+    if dist < 0.75 * ATR_STOP * atr_c:
+        print(f"  Trailing ya apretado ({dist:.2f} = {dist/atr_c:.1f}xATR)."); return
+    atr_e = dist / ATR_STOP
+    sg = 1 if is_long else -1
+    extremo = b["stop"] + sg * dist
+    mfe = sg * (extremo - b["level"])
+    print(f"  Ganancia maxima de la base: {mfe:.2f} = {mfe/atr_e:.1f}xATR (aprieta a {TIGHT_AT}xATR)")
+    if mfe < TIGHT_AT * atr_e:
+        return
+    nueva = round(TIGHT_K * atr_e, 2)
+    for p in poss:
+        if dry:
+            print(f"  [dry] apretaria {p['dealId']} a {nueva}"); continue
+        r = cc.requests.put(f"{cc.BASE}/api/v1/positions/{p['dealId']}", headers=h,
+                            json={"trailingStop": True, "stopDistance": nueva}, timeout=30)
+        print(f"  >> GANANCIA GRANDE: trailing {p['dealId']} {p['dist']} -> {nueva} ({TIGHT_K}xATR) -> {r.status_code} {r.text[:80]}")
 
 
 def signal_at(O, H, L, C, i):
@@ -170,7 +234,8 @@ def get_positions(h):
         if p["market"]["epic"] == EPIC and _mysize(pp["size"]):
             out.append({"dealId": pp["dealId"], "direction": pp.get("direction"),
                         "level": pp.get("level"), "stop": pp.get("stopLevel"),
-                        "dist": pp.get("trailingStopDistance"), "base": _is(pp["size"], SIZE)})
+                        "dist": pp.get("trailingStopDistance"), "base": _is(pp["size"], SIZE),
+                        "created": pp.get("createdDateUTC")})
     return out
 
 
@@ -288,12 +353,14 @@ def main():
                     print(f"     cierre {p['dealId']} -> {r.status_code} {r.text}")
                 cancel_working_orders(h)
             return
+        # 1b) AJUSTE POR GANANCIA GRANDE (8-oct): apretar el trailing de todas las unidades
+        tighten_if_big_gain(h, poss, is_long, dry or status)
         # 2) PIRAMIDE: solo si esta la unidad base sola. Nivel = entrada base +/- PYR_STEP x ATR(entrada),
         #    con ATR(entrada) = distancia del trailing / ATR_STOP. Se decide con el CIERRE 1h (como el backtest).
         base = [p for p in poss if p["base"]]
         if PYR_MAX >= 2 and len(poss) == 1 and base and base[0]["dist"]:
             b = base[0]
-            atr_e = float(b["dist"]) / ATR_STOP
+            atr_e = atr_entrada(b)
             lvl = round(b["level"] + (1 if is_long else -1) * PYR_STEP * atr_e, 2)
             hit = (ev["close"] >= lvl) if is_long else (ev["close"] <= lvl)
             print(f"  Piramide: nivel {lvl} (entrada {b['level']} {'+' if is_long else '-'} {PYR_STEP}x{atr_e:.2f}) "

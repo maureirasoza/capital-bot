@@ -11,7 +11,7 @@ Uso: python btc_screen.py MINUTE_15 300   |   python btc_screen.py HOUR 600
 import sys, time
 import backtest_real as br
 import bot_gold_trend as bt
-bt.EMA_TREND = 0; bt.PYR_MAX = 1   # screening generico: Donchian puro, sin el filtro EMA ni la piramide del bot de oro
+bt.EMA_TREND = 0; bt.PYR_MAX = 1; bt.TIGHT_AT = 0   # screening generico: Donchian puro, sin el filtro EMA ni la piramide del bot de oro
 
 RES = sys.argv[1] if len(sys.argv) > 1 else "MINUTE_15"
 DAYS = int(sys.argv[2]) if len(sys.argv) > 2 else 300
