@@ -40,6 +40,9 @@ BOTS = {
                 "de 8 horas; agrega una 2a unidad (piramide) a +2 x ATR."),
     "crypto":  (None, "HOUR_4", "Bitcoin / Ethereum, velas de 4 horas. Ruptura por volatilidad: entra si la vela de 4h "
                 "se mueve mas de 3 x ATR a favor de la EMA de 200. Trailing 2 x ATR, piramide a +2 x ATR."),
+    "ao_oro":  ("GOLD", "HOUR", "Oro, velas de 1 hora, SOLO COMPRAS. Impulso: compra cuando el MACD(12,26) es positivo y el "
+                "Awesome Oscillator (SMA5 - SMA34 del punto medio) cruza de negativo a positivo; vende cuando MACD < 0 y el AO "
+                "cruza a negativo. Objetivo +10%, stop de seguridad -10%."),
     "bollinger_oro": ("GOLD", "MINUTE_15", "Oro, velas de 15 min. Reversion a la media: Bollinger + RSI con filtro de "
                 "tendencia (EMA200/ADX), esperando un rebote. Trailing 5 x ATR, 2a unidad a +3 x ATR."),
 }

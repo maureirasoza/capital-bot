@@ -18,7 +18,7 @@ REG = os.path.join(DIR, "data", "sombra_local.jsonl")
 EST = os.path.join(DIR, "data", "sombra_local_estado.json")
 # (epic, size) de la unidad BASE -> bot
 BOT_DE = {("US500", 1.0): "sp500", ("US30", 0.1): "us30", ("US30", 0.12): "us30rf", ("US100", 0.1): "us100",
-          ("RTY", 1.0): "rty", ("NL25", 5.0): "nl25", ("GOLD", 0.8): "bollinger_oro", ("GOLD", 0.5): "trend",
+          ("RTY", 1.0): "rty", ("NL25", 5.0): "nl25", ("GOLD", 0.8): "bollinger_oro", ("GOLD", 0.33): "ao_oro", ("GOLD", 0.5): "trend",
           ("BTCUSD", 0.013): "crypto", ("ETHUSD", 0.41): "crypto"}
 BAR_MIN = {"MINUTE_15": 15, "HOUR": 60, "HOUR_4": 240}
 

@@ -54,6 +54,8 @@ def bot_de(epic, size):
             return 'ORO Bollinger legado (2.0)'
         if abs(size - 1.0) < 0.05:
             return 'ORO FVG (1.0)'
+        if abs(size - 0.33) < 0.005:
+            return 'ORO AwesomeMacd 1h (0.33)'   # desde 9-oct
         if abs(size - 0.3) < 0.05:
             return 'ORO FVG legado (0.3)'
         if abs(size - 0.5) < 0.05:

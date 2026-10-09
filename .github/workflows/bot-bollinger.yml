@@ -30,6 +30,19 @@ jobs:
         run: |
           set -o pipefail
           python -u bot_gold_trend.py 2>&1 | tee bot.log
+      # 10o bot (9-oct-2026): ORO AWESOME-MACD 1h (estrategia publica de freqtrade, validada en github_lab.py /
+      # gold_lab_1m.py). Corre en este mismo gatillo horario, independiente del Trend (if: always()).
+      - name: Ejecutar bot oro AWESOME-MACD (1h, solo compras)
+        if: always()
+        env:
+          CAPITAL_API_KEY:      ${{ secrets.CAPITAL_API_KEY }}
+          CAPITAL_IDENTIFIER:   ${{ secrets.CAPITAL_IDENTIFIER }}
+          CAPITAL_API_PASSWORD: ${{ secrets.CAPITAL_API_PASSWORD }}
+          CAPITAL_ENV: demo
+          CAPITAL_ALLOW_LIVE: '0'
+        run: |
+          set -o pipefail
+          python -u bot_gold_ao.py 2>&1 | tee ao.log
       # MODO SOMBRA IA (9-oct-2026): si el bot coloco una orden, Claude opina sobre esa entrada con el contexto
       # del momento (noticias). SOLO REGISTRA: la orden ya esta puesta y este paso no puede tocarla.
       - name: Modo sombra IA (solo registra, no opera)
