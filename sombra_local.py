@@ -50,6 +50,16 @@ def velas_hasta(h, epic, res, t_entrada, n=24):
     return out[-n:]
 
 
+def sentimiento(h, epic):
+    """% de clientes de capital.com comprados/vendidos en ese mercado (valor ACTUAL, minutos despues de la entrada;
+    la API no da historico). Suele leerse al reves: si la gran mayoria esta comprada, el mercado tiende a bajar."""
+    try:
+        d = cc.get(h, f"/api/v1/clientsentiment/{epic}").json()
+        return {"comprados_pct": d.get("longPositionPercentage"), "vendidos_pct": d.get("shortPositionPercentage")}
+    except Exception:
+        return None
+
+
 def pendientes():
     e = estado(); desde = datetime.fromisoformat(e["desde"]); ya = evaluados()
     h = cc.login(); now = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -72,7 +82,8 @@ def pendientes():
         out.append({"dealId": a["dealId"], "bot": bot, "epic": key[0], "size": key[1], "side": det.get("direction"),
                     "precio": float(det["level"]), "t_entrada_utc": t.strftime("%Y-%m-%dT%H:%M:%S"),
                     "minutos_desde_entrada": round((now - t).total_seconds() / 60), "logica_bot": logica,
-                    "velas_previas": velas_hasta(h, key[0], res, t), "resolucion": res})
+                    "velas_previas": velas_hasta(h, key[0], res, t), "resolucion": res,
+                    "sentimiento_clientes_capital": sentimiento(h, key[0])})
     print(json.dumps(sorted(out, key=lambda x: x["t_entrada_utc"]), ensure_ascii=False, indent=1))
 
 
