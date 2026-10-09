@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Evalua el MODO SOMBRA IA: junta los veredictos (artifacts 'sombra-ia-*' de los workflows de capital-bot y
-gold-bot) y los cruza con el resultado REAL de cada operacion en capital.com (misma epic/size/lado, apertura
+gold-bot, y data/sombra_local.jsonl de la tarea programada local) y los cruza con el resultado REAL de cada operacion en capital.com (misma epic/size/lado, apertura
 hasta 30 min despues del veredicto). Responde: si hubieramos hecho caso a la IA, ¿se ganaba mas?
 Uso: python sombra_eval.py [DIAS=30]"""
 import sys, os, json, glob, subprocess, tempfile, time
@@ -28,6 +28,11 @@ def veredictos():
                 for l in open(f):
                     if l.strip():
                         out.append(json.loads(l))
+    loc = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "sombra_local.jsonl")
+    if os.path.exists(loc):
+        for l in open(loc):
+            if l.strip():
+                d = json.loads(l); d["t"] = d.get("t_entrada_utc", d.get("t_veredicto_utc")); out.append(d)
     return out
 
 
@@ -70,8 +75,8 @@ def main():
     h = cc.login(); ops = operaciones(h, desde); usados = set()
     filas = []
     for v in sorted(vs, key=lambda x: x["t"]):
-        t = datetime.fromisoformat(v["t"]); m = None
-        for did, o in ops.items():
+        t = datetime.fromisoformat(v["t"]); m = v.get("dealId") if v.get("dealId") in ops else None
+        for did, o in ([] if m else ops.items()):
             if did in usados or o["epic"] != v.get("epic") or o["side"] != v.get("side"):
                 continue
             if v.get("size") and abs(o["size"] - v["size"]) > 1e-6:
