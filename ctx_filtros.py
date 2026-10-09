@@ -41,7 +41,7 @@ def ema(name, per):
 CLOCK = sorted(set(t for d in D.values() for t in d["T"]))
 US = ("SP500", "US30", "US100", "RTY")
 
-def run(f_dia=None, f_ema=None, max_lado=None, orden=("SP500", "RTY", "US30", "US100", "NL25")):
+def run(f_dia=None, f_ema=None, max_lado=None, orden=("SP500", "RTY", "US30", "US100", "NL25"), bloquear=None):
     pos = {k: None for k in D}; trades = {k: [] for k in D}
     for ts in CLOCK:
         # 1) salidas de todos
@@ -71,6 +71,7 @@ def run(f_dia=None, f_ema=None, max_lado=None, orden=("SP500", "RTY", "US30", "U
             if f_ema:
                 e = ema(k, f_ema)[i]
                 if (sg == 1 and C[i] < e) or (sg == -1 and C[i] > e): continue
+            if bloquear and bloquear(k, ts, sg): continue
             if max_lado and k in US and sum(1 for q in US if q != k and pos[q] and pos[q]["sg"] == sg) >= max_lado: continue
             dist = d["trail"] * d["atr"][i]
             pos[k] = {"i": i, "sg": sg, "e": C[i], "x": C[i], "dist": dist, "stop": C[i] - sg * dist}
