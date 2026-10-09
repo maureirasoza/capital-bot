@@ -10,6 +10,8 @@ on:
 jobs:
   run-bot:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write      # solo para guardar el sentimiento en la rama datos-sentimiento
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -51,3 +53,29 @@ jobs:
           name: sombra-ia-${{ github.run_id }}
           path: sombra_ia.jsonl
           retention-days: 90
+      # SENTIMIENTO DE CLIENTES (9-oct-2026): capital.com no da historico -> se guarda cada 15 min en la rama
+      # 'datos-sentimiento' (sentimiento.jsonl) para probar en unas semanas si sirve como filtro. No toca la operacion.
+      - name: Guardar sentimiento de clientes
+        if: always()
+        continue-on-error: true
+        env:
+          CAPITAL_API_KEY:      ${{ secrets.CAPITAL_API_KEY }}
+          CAPITAL_IDENTIFIER:   ${{ secrets.CAPITAL_IDENTIFIER }}
+          CAPITAL_API_PASSWORD: ${{ secrets.CAPITAL_API_PASSWORD }}
+          CAPITAL_ENV: demo
+          CAPITAL_ALLOW_LIVE: '0'
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python sentimiento_log.py > linea.json
+          URL="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          for i in 1 2 3; do
+            rm -rf datos
+            if ! git clone -q --depth 1 --branch datos-sentimiento "$URL" datos 2>/dev/null; then
+              mkdir datos && git -C datos init -q && git -C datos checkout -q -b datos-sentimiento && git -C datos remote add origin "$URL"
+            fi
+            cat linea.json >> datos/sentimiento.jsonl
+            git -C datos add sentimiento.jsonl
+            git -C datos -c user.name="bot-sentimiento" -c user.email="actions@users.noreply.github.com" commit -qm "sentimiento $(date -u +%FT%TZ)"
+            git -C datos push -q origin datos-sentimiento && break
+            sleep 7
+          done
