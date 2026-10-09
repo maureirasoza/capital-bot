@@ -159,11 +159,12 @@ def xdn(a, b, i): return ok(a[i], b[i], a[i - 1], b[i - 1]) and a[i] < b[i] and 
 
 # ---------------------------------------------------------------- simulador
 def simular(b, epic, el, es=None, xl=None, xs=None, roi=None, sl=None, trail=None, profit_only=False, reverse=False,
-            minutos=60, fin_dias=None):
-    """el/es/xl/xs: listas booleanas (senal al CIERRE de la vela i). Devuelve lista de operaciones {r (% neto), t}."""
+            minutos=60, fin_dias=None, dist=None):
+    """el/es/xl/xs: listas booleanas (senal al CIERRE de la vela i). dist: lista con la distancia del trailing en PRECIO
+    fijada en la vela de senal (stop dinamico de nuestros bots: k x ATR desde el extremo). Devuelve operaciones {r, t}."""
     O, H, L, C, T = b["O"], b["H"], b["L"], b["C"], b["T"]; n = len(C); es = es or [False] * n
     xl = xl or [False] * n; xs = xs or [False] * n; cost = COST[epic]; fin = FIN_LONG.get(epic, 0)
-    roi_t = sorted((roi or {}).items()); tr = []; pos = None; pend = None
+    roi_t = sorted((roi or {}).items()); tr = []; pos = None; pend = None; pend_d = None
 
     def cerrar(px, i):
         nonlocal pos
@@ -175,7 +176,7 @@ def simular(b, epic, el, es=None, xl=None, xs=None, roi=None, sl=None, trail=Non
 
     for i in range(1, n):
         if pend is not None and pos is None:                       # entrada en la apertura
-            pos = {"sg": pend, "e": O[i], "i": i, "hi": O[i], "lo": O[i]}; pend = None
+            pos = {"sg": pend, "e": O[i], "i": i, "hi": O[i], "lo": O[i], "d": pend_d}; pend = None
         if pos is not None:
             sg, e = pos["sg"], pos["e"]
             mins = (T[i] - T[pos["i"]]).total_seconds() / 60
@@ -187,6 +188,9 @@ def simular(b, epic, el, es=None, xl=None, xs=None, roi=None, sl=None, trail=Non
                     ts = best * (1 - sg * pv); stop = ts if stop is None else (max(stop, ts) if sg == 1 else min(stop, ts))
                 elif not only and sl is not None:
                     ts = best * (1 + sg * sl); stop = max(stop, ts) if sg == 1 else min(stop, ts)
+            if pos.get("d"):                                        # trailing k x ATR (nuestros bots)
+                ts = pos["hi"] - pos["d"] if sg == 1 else pos["lo"] + pos["d"]
+                stop = ts if stop is None else (max(stop, ts) if sg == 1 else min(stop, ts))
             tgt = None
             for k, r in roi_t:
                 if mins >= k: tgt = r
@@ -210,6 +214,7 @@ def simular(b, epic, el, es=None, xl=None, xs=None, roi=None, sl=None, trail=Non
         if pos is None and pend is None and i + 1 < n:
             if el[i]: pend = 1
             elif es[i]: pend = -1
+            if pend is not None: pend_d = dist[i] if dist else None
     return tr
 
 def sesion_sim(b, epic, nivel_fn, stop_tgt=None):
