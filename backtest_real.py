@@ -183,7 +183,7 @@ def simulate(O, H, L, C, T, stop_mult):
                 trades.append({"side": side, "entry": pos["entry"], "exit": exit_px,
                                "t_in": pos["t_in"], "t_out": T[t], "gross": gross,
                                "net": gross - (2 * SPREAD + SLIP) * len(pos["entries"]),
-                               "reason": reason, "units": len(pos["entries"])})
+                               "reason": reason, "units": len(pos["entries"]), "tight": pos.get("tight", False)})
                 pos = None; exited = True
             else:
                 if side == "long":
@@ -281,7 +281,7 @@ def simulate_bollinger(O, H, L, C, T, bg, trail_mult, gaps=False, bar_min=15):
                 trades.append({"side": side, "entry": pos["entry"], "exit": exit_px,
                                "t_in": pos["t_in"], "t_out": T[t], "gross": gross,
                                "net": gross - (2 * SPREAD + SLIP) * len(pos["entries"]),
-                               "units": len(pos["entries"])})
+                               "units": len(pos["entries"]), "tight": pos.get("tight", False)})
                 pos = None
             else:
                 if side == "long":
