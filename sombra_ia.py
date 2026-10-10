@@ -24,8 +24,8 @@ BOTS = {
     "sp500":   ("US500", "MINUTE_15", "S&P 500. Reversion a la media en velas de 15 min: entra cuando el precio cierra "
                 "fuera de su banda de Bollinger (20, 2) en la direccion de un exceso, esperando que REBOTE hacia la media. "
                 "Salida solo por stop dinamico (trailing) de 4 x ATR; sin objetivo fijo."),
-    "us30":    ("US30", "MINUTE_15", "Dow Jones 30. Reversion a la media 15 min: banda de Bollinger (20, 2) + RSI(14) "
-                "bajo 35 (compra) o sobre 65 (venta), esperando un rebote. Trailing 5 x ATR, sin objetivo fijo."),
+    "us30":    ("US30", "MINUTE_15", "Dow Jones 30. Reversion a la media 15 min: banda de Bollinger (26, 1.75) + RSI(14) "
+                "bajo 35 (compra) o sobre 65 (venta), esperando un rebote. Trailing 4.5 x ATR, sin objetivo fijo."),
     "us100":   ("US100", "MINUTE_15", "Nasdaq 100. Reversion a la media 15 min: Bollinger (20, 2) + RSI 35/65, esperando "
                 "un rebote. Trailing 5 x ATR, sin objetivo fijo."),
     "rty":     ("RTY", "MINUTE_15", "Russell 2000. Reversion a la media 15 min: Bollinger (20, 2) + RSI 35/65, esperando "
