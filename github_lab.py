@@ -172,7 +172,7 @@ def simular(b, epic, el, es=None, xl=None, xs=None, roi=None, sl=None, trail=Non
         dias = (T[i] - T[pos["i"]]).total_seconds() / 86400 if pos["sg"] == 1 else 0
         adv = (min(pos["lo"], px) - pos["e"]) / pos["e"] if pos["sg"] == 1 else (pos["e"] - max(pos["hi"], px)) / pos["e"]
         tr.append({"r": 100 * g / pos["e"] - 100 * fin * dias, "t": T[pos["i"]], "mae": 100 * adv, "barras": i - pos["i"],
-                   "sg": pos["sg"]}); pos = None
+                   "sg": pos["sg"], "tout": T[i]}); pos = None
 
     for i in range(1, n):
         if pend is not None and pos is None:                       # entrada en la apertura
