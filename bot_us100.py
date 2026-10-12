@@ -196,7 +196,14 @@ def manual_trail(h, deal_id, direction, cur_stop, atr, dry):
     print(f"     ajuste -> {r.status_code} {r.text[:120]}")
 
 
+ENABLED = False   # 12-oct-2026: PAUSADO. Sin ventaja fuera de muestra en el re-test honesto (retest.py / retest_wf.py,
+                  # motor fiel 5m). Las posiciones abiertas siguen protegidas por su stop nativo en capital.com.
+                  # Reactivar = True.
+
+
 def main():
+    if not ENABLED:
+        print("[US100] PAUSADO (ENABLED=False, 12-oct-2026): no opera."); return
     dry = "--dry-run" in sys.argv
     status = "--status" in sys.argv
     h = cc.login()

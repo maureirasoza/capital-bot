@@ -32,17 +32,14 @@ import capital_client as cc
 
 EPIC      = "US30"
 SIZE      = 0.1            # unico en US30 -> identifica al bot en candado y tracker
-BB_LEN    = 26             # 10-oct-2026: 20 -> 26 y BB_MULT 2.0 -> 1.75, TRAIL 5.0 -> 4.5 (ver abajo)
-BB_MULT   = 1.75
+BB_LEN    = 20             # 12-oct-2026: vuelve a 20/2.0 y TRAIL 4.0 segun retest_wf.py (12-oct-2026, motor fiel 5m, ELEGIDO con 2024-01->2025-06 y PROBADO en 2025-07->hoy)
+BB_MULT   = 2.0
 RSI_LEN   = 14
 RSI_LOW   = 35
 RSI_HIGH  = 65
 ATR_LEN   = 14
-TRAIL_ATR = 4.5            # 10-oct-2026 (us30_fiel.py, FIEL 1m bid/ask 600d, 54 variantes BB/RSI/trail):
-                           #   antes BB20/2.0 t5.0: +14686 pts PF1.33 DD-3355, 4/6 tramos +, mitades +8001/+6685
-                           #   ahora BB26/1.75 t4.5: +15805 pts PF1.36 DD-3189, 5/6 tramos +, mitades +8370/+7435
-                           #   vecinos t4.0 +17554 (5/6), t5.0 +13956; modelo 15m 600d +44.8% vs +42.3%;
-                           #   semana 5-9 oct: +$30.5 vs -$124.2. (Trail 4 con BB20/2 NO se confirmo en 1m: +12804.)
+TRAIL_ATR = 4.0            # 12-oct-2026: entrenamiento +$848 PF1.22 | prueba +$1070 PF1.28 (la config 26/1.75 t4.5 del
+                           # 10-oct se habia elegido con datos que incluian la prueba: entren +$411, prueba +$702).
 BAR_MIN   = 15
 
 

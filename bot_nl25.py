@@ -36,13 +36,14 @@ import capital_client as cc
 
 EPIC      = "NL25"
 SIZE      = 5.0            # unico en NL25 -> identifica al bot en candado y tracker
-BB_LEN    = 26
-BB_MULT   = 1.75
+BB_LEN    = 20             # 12-oct-2026: 26/1.75 t2 -> 20/2.0 t5 segun retest_wf.py (12-oct-2026, motor fiel 5m, ELEGIDO con 2024-01->2025-06 y PROBADO en 2025-07->hoy)
+BB_MULT   = 2.0
 RSI_LEN   = 14
 RSI_LOW   = 30
 RSI_HIGH  = 70
 ATR_LEN   = 14
-TRAIL_ATR = 2.0            # trailing CORTO: ROB3 a 2x (y 4x); en 1h/600d el mejor es 3x
+TRAIL_ATR = 5.0            # 12-oct-2026: entrenamiento +$1027 PF1.44 | prueba +$372 PF1.13 (antes t2: entren -$362,
+                           # prueba +$57). Vecinos RSI30/70 t4-5 positivos en ambos periodos.
 BAR_MIN   = 15
 DEC       = 2              # NL25 cotiza con 2 decimales (ATR ~1.7): redondear a 0.1 seria grosero
 

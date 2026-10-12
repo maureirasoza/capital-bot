@@ -33,7 +33,8 @@ import sys
 from datetime import datetime, timezone, timedelta
 import capital_client as cc
 
-MARKETS   = {"BTCUSD": {"size": 0.013, "size_pyr": 0.0131, "dec": 2},
+# 12-oct-2026: BTC PAUSADO (re-test fiel 5m 1000d: -$11, PF 0.96; el financiamiento de largos se come la ventaja).
+MARKETS   = {"BTCUSD": {"size": 0.013, "size_pyr": 0.0131, "dec": 2, "pausado": True},
              "ETHUSD": {"size": 0.41,  "size_pyr": 0.411,  "dec": 2}}
 K         = 3.0           # estallido: |cierre - cierre previo| > K x ATR previo
 TRAIL_ATR = 2.0           # trailing nativo desde la entrada
@@ -216,6 +217,8 @@ def main():
     status = "--status" in sys.argv
     h = cc.login()
     for epic, m in MARKETS.items():
+        if m.get("pausado"):
+            print(f"  {epic}: PAUSADO (12-oct-2026), no opera."); continue
         run_epic(h, epic, m, dry, status)
 
 

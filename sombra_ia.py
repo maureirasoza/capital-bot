@@ -24,14 +24,14 @@ BOTS = {
     "sp500":   ("US500", "MINUTE_15", "S&P 500. Reversion a la media en velas de 15 min: entra cuando el precio cierra "
                 "fuera de su banda de Bollinger (20, 2) en la direccion de un exceso, esperando que REBOTE hacia la media. "
                 "Salida solo por stop dinamico (trailing) de 4 x ATR; sin objetivo fijo."),
-    "us30":    ("US30", "MINUTE_15", "Dow Jones 30. Reversion a la media 15 min: banda de Bollinger (26, 1.75) + RSI(14) "
-                "bajo 35 (compra) o sobre 65 (venta), esperando un rebote. Trailing 4.5 x ATR, sin objetivo fijo."),
+    "us30":    ("US30", "MINUTE_15", "Dow Jones 30. Reversion a la media 15 min: banda de Bollinger (20, 2) + RSI(14) "
+                "bajo 35 (compra) o sobre 65 (venta), esperando un rebote. Trailing 4 x ATR, sin objetivo fijo."),
     "us100":   ("US100", "MINUTE_15", "Nasdaq 100. Reversion a la media 15 min: Bollinger (20, 2) + RSI 35/65, esperando "
                 "un rebote. Trailing 5 x ATR, sin objetivo fijo."),
     "rty":     ("RTY", "MINUTE_15", "Russell 2000. Reversion a la media 15 min: Bollinger (20, 2) + RSI 35/65, esperando "
                 "un rebote. Trailing 4 x ATR (se aprieta a 2 x ATR tras +14 x ATR de ganancia), sin objetivo fijo."),
-    "nl25":    ("NL25", "MINUTE_15", "AEX Holanda 25. Reversion a la media 15 min: Bollinger (26, 1.75) + RSI 30/70, "
-                "esperando un rebote. Trailing 2 x ATR, sin objetivo fijo."),
+    "nl25":    ("NL25", "MINUTE_15", "AEX Holanda 25. Reversion a la media 15 min: Bollinger (20, 2) + RSI 30/70, "
+                "esperando un rebote. Trailing 5 x ATR, sin objetivo fijo."),
     "us30rf":  ("US30", "HOUR", "Dow Jones 30, velas de 1 hora. 'Ruptura fallida': el precio rompio el maximo (o minimo) "
                 "de las ultimas 48 horas y en <= 2 velas volvio a cerrar dentro del rango; entra en CONTRA de la ruptura. "
                 "Trailing 3 x ATR (se aprieta a 1.75 x ATR tras +3.5 x ATR), sin objetivo fijo."),

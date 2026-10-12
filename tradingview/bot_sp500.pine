@@ -1,0 +1,45 @@
+//@version=5
+// Copia FIEL del bot SP500 de capital-demo (bot_sp500.py) para verificarlo con el probador de TradingView.
+// Usar en el grafico CAPITALCOM:US500, velas de 15 minutos.
+//  - Señal al cierre de la vela 15m: cierre bajo la banda inferior Bollinger(26, 1.75, desviacion poblacional) y
+//    RSI(14) < 30, y esa condicion NO se cumplia en la vela anterior -> COMPRA. Venta simetrica (sobre la banda y RSI > 70).
+//  - Entrada con orden LIMITE al precio de cierre de la señal, valida solo durante la vela siguiente (como el bot).
+//  - Salida UNICA: stop dinamico (trailing) = 4 x ATR(14) de la vela de señal, desde el precio de entrada. Sin objetivo.
+//  - Una posicion a la vez. Costo: spread US500 ~0.6 pts por operacion (0.3 por lado, 1 contrato = $1/pt).
+strategy("Bot SP500 (BB26/1.75 RSI30/70 trailing 4xATR)", overlay=true, initial_capital=1000,
+     default_qty_type=strategy.fixed, default_qty_value=1, pyramiding=0,
+     commission_type=strategy.commission.cash_per_contract, commission_value=0.3)
+
+bbLen  = input.int(26, "Bollinger: velas")
+bbMult = input.float(1.75, "Bollinger: desviaciones")
+rsiLo  = input.int(30, "RSI compra bajo")
+rsiHi  = input.int(70, "RSI venta sobre")
+trailK = input.float(4.0, "Trailing (x ATR)")
+
+basis = ta.sma(close, bbLen)
+dev   = bbMult * ta.stdev(close, bbLen)          // ta.stdev es poblacional, igual que el bot
+r     = ta.rsi(close, 14)                        // RSI de Wilder, igual que el bot
+a     = ta.atr(14)                               // ATR de Wilder, igual que el bot
+
+longC  = close < basis - dev and r < rsiLo
+shortC = close > basis + dev and r > rsiHi
+longSig  = longC and not longC[1]
+shortSig = shortC and not shortC[1]
+
+var float dist = na
+if strategy.position_size == 0
+    strategy.cancel("L")                          // la orden limite solo vale una vela
+    strategy.cancel("S")
+    if longSig
+        dist := trailK * a
+        strategy.entry("L", strategy.long, limit=close)
+    else if shortSig
+        dist := trailK * a
+        strategy.entry("S", strategy.short, limit=close)
+
+ticks = math.round(dist / syminfo.mintick)
+strategy.exit("salida L", from_entry="L", trail_points=0, trail_offset=ticks)
+strategy.exit("salida S", from_entry="S", trail_points=0, trail_offset=ticks)
+
+plot(basis - dev, "banda inferior", color.new(color.blue, 40))
+plot(basis + dev, "banda superior", color.new(color.blue, 40))
