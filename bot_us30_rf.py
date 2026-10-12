@@ -237,9 +237,8 @@ def manual_trail(h, deal_id, direction, cur_stop, atr, dry):
     print(f"     ajuste -> {r.status_code} {r.text[:120]}")
 
 
-ENABLED = False   # 12-oct-2026: PAUSADO. Sin ventaja fuera de muestra en el re-test honesto (retest.py / retest_wf.py,
-                  # motor fiel 5m). Las posiciones abiertas siguen protegidas por su stop nativo en capital.com.
-                  # Reactivar = True.
+ENABLED = True    # 12-oct-2026: pausado y REACTIVADO el mismo dia. Walk-forward fiel 5m (rf_wf): 25/27 variantes ganan en
+                  # entrenamiento (2024-01->2025-06) y en prueba (2025-07->hoy); config actual: entren +$413, prueba +$977.
 
 
 def main():
