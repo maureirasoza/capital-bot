@@ -200,6 +200,11 @@ def manual_trail(h, deal_id, direction, cur_stop, atr, dry):
     print(f"     ajuste -> {r.status_code} {r.text[:120]}")
 
 
+# 14-oct-2026: ENTRADAS NUEVAS EN PAUSA (6 semanas en vivo -$342, PF 0.79; sin ventaja estadistica fuera de muestra).
+# Las posiciones abiertas se siguen gestionando. Reactivar = True.
+NUEVAS_ENTRADAS = False
+
+
 def main():
     dry = "--dry-run" in sys.argv
     status = "--status" in sys.argv
@@ -215,6 +220,8 @@ def main():
         else:
             manual_trail(h, deal_id, direction, cur_stop, sig["atr"], dry or status)
         return
+    if not NUEVAS_ENTRADAS:
+        print("  [US30] ENTRADAS NUEVAS EN PAUSA (14-oct-2026): no abro posicion."); return
     if sig["side"]:
         print(f"  >> SENAL {sig['side']} (banda+RSI recien cumplidos). Salida: trailing {TRAIL_ATR}xATR sin TP")
     else:

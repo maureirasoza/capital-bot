@@ -329,6 +329,11 @@ def acted_this_bar(h, bar0):
     return False
 
 
+# 14-oct-2026: ENTRADAS NUEVAS EN PAUSA (6 semanas en vivo -$342, PF 0.79; sin ventaja estadistica fuera de muestra).
+# Las posiciones abiertas se siguen gestionando. Reactivar = True.
+NUEVAS_ENTRADAS = False
+
+
 def main():
     dry = "--dry-run" in sys.argv
     status = "--status" in sys.argv
@@ -365,6 +370,8 @@ def main():
             hit = (ev["close"] >= lvl) if is_long else (ev["close"] <= lvl)
             print(f"  Piramide: nivel {lvl} (entrada {b['level']} {'+' if is_long else '-'} {PYR_STEP}x{atr_e:.2f}) "
                   f"cierre {ev['close']} -> {'ALCANZADO' if hit else 'aun no'}")
+            if hit and not NUEVAS_ENTRADAS:
+                print("  Piramide en pausa (14-oct-2026)."); return
             if hit:
                 if status or dry:
                     print("  [status/dry-run] No agrego la unidad."); return
@@ -380,6 +387,8 @@ def main():
         print("  Stop TRAILING NATIVO (capital.com lo mueve en tiempo real).")
         return
 
+    if not NUEVAS_ENTRADAS:
+        print("  [Trend oro] ENTRADAS NUEVAS EN PAUSA (14-oct-2026): no abro posicion."); return
     # sin posicion -> buscar entrada (dos lados, a favor de la EMA)
     if ev["long_break"]:
         side = "BUY"

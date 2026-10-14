@@ -241,6 +241,11 @@ ENABLED = True    # 12-oct-2026: pausado y REACTIVADO el mismo dia. Walk-forward
                   # entrenamiento (2024-01->2025-06) y en prueba (2025-07->hoy); config actual: entren +$413, prueba +$977.
 
 
+# 14-oct-2026: ENTRADAS NUEVAS EN PAUSA (6 semanas en vivo -$342, PF 0.79; sin ventaja estadistica fuera de muestra).
+# Las posiciones abiertas se siguen gestionando. Reactivar = True.
+NUEVAS_ENTRADAS = False
+
+
 def main():
     if not ENABLED:
         print("[US30 ruptura fallida] PAUSADO (ENABLED=False, 12-oct-2026): no opera."); return
@@ -260,6 +265,8 @@ def main():
         else:
             manual_trail(h, deal_id, direction, cur_stop, ev["atr"], dry or status)
         return
+    if not NUEVAS_ENTRADAS:
+        print("  [US30 RF] ENTRADAS NUEVAS EN PAUSA (14-oct-2026): no abro posicion."); return
     if not ev["side"]:
         print("  >> sin ruptura fallida en la ultima vela cerrada -> no entro."); return
     print(f"  >> RUPTURA FALLIDA: cierre {ev['close']} volvio {'bajo' if ev['side']=='SELL' else 'sobre'} el nivel {ev['level']} "

@@ -35,7 +35,7 @@ import capital_client as cc
 
 # 12-oct-2026: BTC PAUSADO (re-test fiel 5m 1000d: -$11, PF 0.96; el financiamiento de largos se come la ventaja).
 MARKETS   = {"BTCUSD": {"size": 0.013, "size_pyr": 0.0131, "dec": 2, "pausado": True},
-             "ETHUSD": {"size": 0.41,  "size_pyr": 0.411,  "dec": 2}}
+             "ETHUSD": {"size": 0.41,  "size_pyr": 0.411,  "dec": 2, "pausado": True}}
 K         = 3.0           # estallido: |cierre - cierre previo| > K x ATR previo
 TRAIL_ATR = 2.0           # trailing nativo desde la entrada
 EMA_LEN   = 200           # filtro de tendencia (velas 4h ~ 33 dias)
