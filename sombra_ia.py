@@ -44,7 +44,7 @@ BOTS = {
                 "Awesome Oscillator (SMA5 - SMA34 del punto medio) cruza de negativo a positivo; vende cuando MACD < 0 y el AO "
                 "cruza a negativo. Objetivo +10%, stop de seguridad -10%."),
     "bollinger_oro": ("GOLD", "MINUTE_15", "Oro, velas de 15 min. Reversion a la media: Bollinger + RSI con filtro de "
-                "tendencia (EMA200/ADX), esperando un rebote. Trailing 5 x ATR, 2a unidad a +3 x ATR."),
+                "tendencia (EMA200/ADX), esperando un rebote. Trailing 4 x ATR, 2a unidad a +3 x ATR."),
 }
 
 SYSTEM = (
