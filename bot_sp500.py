@@ -52,8 +52,8 @@ EPIC      = "US500"
 SIZE      = 1.0            # a pedido (19-sep). $1/pt por unidad (lotSize 1, USD) -> riesgo inicial
                            # ~27 pts = ~$27/trade con ATR ~7.7; margen 5% ~= $383. Unico bot en US500
                            # -> el tamano identifica al bot para el candado y el tracker.
-BB_LEN    = 26
-BB_MULT   = 1.75
+BB_LEN    = 20             # 15-oct-2026: 26/1.75 -> 20/2.0 (ver NUEVAS_ENTRADAS mas abajo)
+BB_MULT   = 2.0
 RSI_LEN   = 14
 RSI_LOW   = 30             # 19-sep: entrada = motor BB+RSI del bot de oro con RSI EXTREMO 30/70 y
 RSI_HIGH  = 70             # SIN filtro direccional (validado en 300d REALES, ver docstring).
@@ -231,9 +231,11 @@ def manual_trail(h, deal_id, direction, cur_stop, atr, dry):
     print(f"     ajuste -> {r.status_code} {r.text[:120]}")
 
 
-# 14-oct-2026: ENTRADAS NUEVAS EN PAUSA (6 semanas en vivo -$342, PF 0.79; sin ventaja estadistica fuera de muestra).
-# Las posiciones abiertas se siguen gestionando. Reactivar = True.
-NUEVAS_ENTRADAS = False
+# 15-oct-2026: REACTIVADO con BB20/2.0 RSI30/70 trailing 4xATR. Motor fiel 5m (retest.py), mismo simulador para todo:
+#   2024-01 -> 2025-06: 431 ops +$1367 PF1.31 (prob. de suerte 5.1%) | 2025-07 -> hoy: 360 ops +$1502 PF1.39 (2.4%)
+#   ultimo mes 13-sep -> 12-oct: 24 ops +$117 PF1.55. (Config anterior 26/1.75: +$876 PF1.19 (13%) / +$1850.)
+#   Fue la unica forma de operar que gano el ultimo mes (mercado lateral) Y gana en ambos periodos largos.
+NUEVAS_ENTRADAS = True
 
 
 def main():
