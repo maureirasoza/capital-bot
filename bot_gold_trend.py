@@ -329,9 +329,9 @@ def acted_this_bar(h, bar0):
     return False
 
 
-# 14-oct-2026: ENTRADAS NUEVAS EN PAUSA (6 semanas en vivo -$342, PF 0.79; sin ventaja estadistica fuera de muestra).
-# Las posiciones abiertas se siguen gestionando. Reactivar = True.
-NUEVAS_ENTRADAS = False
+# 13-nov-2026: REACTIVADO. Pausado 14-oct tras un mes lateral; en la caida del oro 4098 -> 3882 habria hecho +$183 (backtest).
+# Walk-forward fiel 5m (retest_oro_wf.py): 35/36 variantes positivas en 2024-01->2025-06 y 2025-07->oct-2026.
+NUEVAS_ENTRADAS = True
 
 
 def main():
