@@ -241,9 +241,9 @@ ENABLED = True    # 12-oct-2026: pausado y REACTIVADO el mismo dia. Walk-forward
                   # entrenamiento (2024-01->2025-06) y en prueba (2025-07->hoy); config actual: entren +$413, prueba +$977.
 
 
-# 14-oct-2026: ENTRADAS NUEVAS EN PAUSA (6 semanas en vivo -$342, PF 0.79; sin ventaja estadistica fuera de muestra).
-# Las posiciones abiertas se siguen gestionando. Reactivar = True.
-NUEVAS_ENTRADAS = False
+# 18-nov-2026: REACTIVADO a pedido. En pausa desde 14-oct habria hecho +$403 (9 ops, backtest con datos frescos).
+# Walk-forward fiel 5m: 25/27 variantes positivas en ambos periodos (retest_rf_wf.py).
+NUEVAS_ENTRADAS = True
 
 
 def main():
